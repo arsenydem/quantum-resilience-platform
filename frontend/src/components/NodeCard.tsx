@@ -24,6 +24,11 @@ export default function NodeCard({ node, onEdit, onDelete }: Props) {
           <div>
             <h4 className="font-semibold">{node.name}</h4>
             <span className="text-xs text-gray-500">{node.type}</span>
+            {typeof node.weight === "number" && (
+              <span className="block text-xs font-semibold text-indigo-600">
+                Вес: {node.weight}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -36,14 +41,28 @@ export default function NodeCard({ node, onEdit, onDelete }: Props) {
         </div>
       </div>
       <div className="text-sm space-y-1 text-gray-600">
-        <p>ОС: {node.os}</p>
+        <p>ОС: {node.os || "—"}</p>
         {node.antivirus && <p>Антивирус: {node.antivirus}</p>}
         {node.professional_software.length > 0 && (
           <p>ПО: {node.professional_software.join(", ")}</p>
         )}
-        {node.password_policy && (
-          <p className="text-xs">Пароль ≥{node.password_policy.min_length} симв.</p>
+        {node.wifi && (
+          <p className="text-xs">
+            Wi-Fi: {node.wifi.encryption} ({node.wifi.password ? "пароль задан" : "без пароля"})
+          </p>
         )}
+        {node.security_policy && (
+          <>
+            <p className="text-xs">
+              Пароли хешируются: {node.security_policy.password_hashed ? "да" : "нет"}
+            </p>
+            <p className="text-xs">Резервные копии: {node.security_policy.backup_frequency}</p>
+          </>
+        )}
+        <p className="text-xs">
+          Персональные данные:{" "}
+          {node.personal_data.enabled ? `${node.personal_data.count} записей` : "не обрабатываются"}
+        </p>
       </div>
     </div>
   );

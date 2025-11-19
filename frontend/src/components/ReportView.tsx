@@ -1,6 +1,6 @@
 import { CheckCircle, XCircle, AlertTriangle, Download } from "lucide-react";
 import AttackGraph from "./AttackGraph";
-import { AnalysisResult } from "../types";
+import { AnalysisResult, NetworkNode } from "../types";
 
 const getScoreColor = (score: number) => {
   if (score >= 80) return "text-green-600 bg-green-50";
@@ -8,7 +8,13 @@ const getScoreColor = (score: number) => {
   return "text-red-600 bg-red-50";
 };
 
-export default function ReportView({ report }: { report: AnalysisResult }) {
+export default function ReportView({
+  report,
+  nodes,
+}: {
+  report: AnalysisResult;
+  nodes: NetworkNode[];
+}) {
   return (
     <div className="space-y-8">
       <div className="text-center py-12">
@@ -57,7 +63,7 @@ export default function ReportView({ report }: { report: AnalysisResult }) {
 
       <div>
         <h3 className="text-3xl font-bold mb-6 text-center">Граф квантовых атак</h3>
-        <AttackGraph graph={report.attack_graph} />
+        <AttackGraph platformNodes={nodes} fallbackGraph={report.attack_graph} />
       </div>
 
       <div className="text-center pt-8">

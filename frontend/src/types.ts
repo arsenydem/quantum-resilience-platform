@@ -19,6 +19,9 @@ export interface NetworkNode {
   type: NodeType;
   name: string;
 
+  /** Computed security weight (0..10) assigned on form submit. */
+  weight?: number;
+
   os?: string;
   antivirus?: string;
   encryption?: string[];

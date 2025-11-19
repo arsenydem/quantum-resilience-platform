@@ -1,6 +1,7 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Network } from "lucide-react";
 import { NetworkNode, NodeType } from "../types";
+import { getNodeWeight } from "../../data/securityWeights";
 import NodeCard from "./NodeCard";
 
 const nodeTypes: { value: NodeType; label: string }[] = [
@@ -10,6 +11,104 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: "router", label: "Маршрутизатор" },
   { value: "firewall", label: "Файрволл" },
   { value: "wifi_ap", label: "Точка доступа Wi-Fi" },
+];
+const MOCK_NODES: Omit<NetworkNode, "id">[] = [
+    {
+        type: "pc",
+        name: "DevOps Workstation",
+        os: "Windows",
+        antivirus: "Kaspersky Endpoint Security",
+        encryption: ["BitLocker"],
+        vpn: "Corporate VPN (OpenVPN)",
+        wifi: {
+            password: "StrongPass!23",
+            encryption: "WPA3-Enterprise",
+        },
+        security_policy: {
+            password_hashed: true,
+            backup_frequency: "daily",
+        },
+        personal_data: {
+            enabled: true,
+            count: 2400,
+        },
+        professional_software: ["Visual Studio", "Docker Desktop", "Terraform"],
+    },
+    {
+        type: "firewall",
+        name: "Perimeter Firewall",
+        os: "Linux",
+        antivirus: "CrowdStrike Falcon",
+        encryption: ["IPSec"],
+        vpn: "Site-to-site VPN",
+        security_policy: {
+            password_hashed: true,
+            backup_frequency: "weekly",
+        },
+        personal_data: {
+            enabled: false,
+            count: 0,
+        },
+        professional_software: ["Suricata IDS", "Zabbix Agent"],
+    },
+    {
+        type: "router",
+        name: "Branch Router",
+        os: "Linux",
+        antivirus: "Microsoft Defender for Endpoint",
+        wifi: {
+            password: "branch-office",
+            encryption: "WPA2-Enterprise",
+        },
+        security_policy: {
+            password_hashed: false,
+            backup_frequency: "monthly",
+        },
+        personal_data: {
+            enabled: false,
+            count: 0,
+        },
+        professional_software: ["NetFlow Collector"],
+    },
+    {
+        type: "pc",
+        name: "Finance Laptop",
+        os: "macOS",
+        antivirus: "ESET NOD32",
+        encryption: ["FileVault 2"],
+        wifi: {
+            password: "FinDept@2024",
+            encryption: "WPA3-Personal",
+        },
+        security_policy: {
+            password_hashed: true,
+            backup_frequency: "daily",
+        },
+        personal_data: {
+            enabled: true,
+            count: 520,
+        },
+        professional_software: ["1C", "SAP GUI", "MS Office"],
+    },
+    {
+        type: "wifi_ap",
+        name: "Guest Wi-Fi",
+        os: "Linux",
+        antivirus: "",
+        wifi: {
+            password: "",
+            encryption: "WPA2-Personal",
+        },
+        security_policy: {
+            password_hashed: false,
+            backup_frequency: "none",
+        },
+        personal_data: {
+            enabled: false,
+            count: 0,
+        },
+        professional_software: [],
+    },
 ];
 
 const osOptions = [
@@ -52,7 +151,13 @@ const wifiEncryptionOptions = [
   { value: "WPA2-Enterprise", label: "WPA2-Enterprise" },
   { value: "WPA3-Personal", label: "WPA3-Personal" },
   { value: "WPA3-Enterprise", label: "WPA3-Enterprise" },
-];
+]
+
+const withWeight = (node: NetworkNode): NetworkNode => ({
+  ...node,
+  weight: getNodeWeight(node.name, node.type),
+});
+
 
 export default function PlatformForm({
   onNext,
@@ -63,6 +168,25 @@ export default function PlatformForm({
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<NetworkNode | null>(null);
   const [currentType, setCurrentType] = useState<NodeType>("pc");
+
+  const applyMockNodes = () => {
+    const stamp = Date.now();
+    const prepared = MOCK_NODES.map((mock, index) =>
+      withWeight({
+        ...mock,
+        id: `mock-${index}-${stamp}`,
+      } as NetworkNode)
+    );
+    setNodes(prepared);
+    setShowForm(false);
+    setEditing(null);
+  };
+
+  const clearAllNodes = () => {
+    setNodes([]);
+    setEditing(null);
+    setShowForm(false);
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,11 +239,15 @@ export default function PlatformForm({
       personal_data,
     };
 
+    const nodeWithWeight = withWeight(newNode);
+
     if (editing) {
-      setNodes((prev) => prev.map((n) => (n.id === editing.id ? newNode : n)));
+      setNodes((prev) =>
+        prev.map((n) => (n.id === editing.id ? nodeWithWeight : n))
+      );
       setEditing(null);
     } else {
-      setNodes((prev) => [...prev, newNode]);
+      setNodes((prev) => [...prev, nodeWithWeight]);
     }
 
     setShowForm(false);
@@ -134,21 +262,39 @@ export default function PlatformForm({
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-8">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-8 gap-4 flex-wrap">
         <h2 className="text-2xl font-bold flex items-center gap-3">
           <Network className="w-8 h-8 text-indigo-600" />
           Описание цифровой платформы
         </h2>
-        <button
-          onClick={() => {
-            setEditing(null);
-            setCurrentType("pc");
-            setShowForm(true);
-          }}
-          className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
-        >
+        <div className="flex flex-wrap gap-3 justify-end">
+          <button
+            type="button"
+            onClick={applyMockNodes}
+            className="px-4 py-2 border rounded-lg text-sm font-semibold hover:bg-indigo-50"
+          >
+            Автозаполнение
+          </button>
+          <button
+            type="button"
+            onClick={clearAllNodes}
+            disabled={nodes.length === 0}
+            className="px-4 py-2 border rounded-lg text-sm font-semibold hover:bg-rose-50 disabled:opacity-50"
+          >
+            Очистить
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setCurrentType("pc");
+              setShowForm(true);
+            }}
+            className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
+          >
           + Добавить узел
-        </button>
+          </button>
+        </div>
       </div>
 
       {nodes.length === 0 ? (
@@ -419,3 +565,6 @@ export default function PlatformForm({
     </div>
   );
 }
+
+
+
