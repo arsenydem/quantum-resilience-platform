@@ -3,9 +3,8 @@ import { AlertTriangle, DollarSign, Cpu } from "lucide-react";
 import { ThreatModel } from "../types";
 
 const capabilities = [
-  { value: "CRQC 2030", label: "Квантовый компьютер 2030 года (ограниченная коррекция ошибок)" },
-  { value: "CRQC 2035+", label: "CRQC 2035+ (полная коррекция ошибок, миллионы кубитов)" },
-  { value: "Fault-tolerant 2040+", label: "Полностью отказоустойчивый квантовый компьютер 2040+" },
+  { value: "UsualAttack", label: "Обычная атака" },
+  { value: "QuantumAttack", label: "Атака с использованием квантовых ПК" },
 ];
 
 export default function ThreatModelForm({
@@ -65,39 +64,26 @@ export default function ThreatModelForm({
             ))}
           </div>
         </div>
-
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
-          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-            <DollarSign className="w-6 h-6" />
-            Бюджет нарушителя
-          </h3>
-          <input
-            type="number"
-            value={form.budget_usd}
-            onChange={e => setForm({ ...form, budget_usd: Number(e.target.value) })}
-            className="w-full px-4 py-3 text-2xl border rounded-lg"
-            min="1000000"
-            step="100000000"
-          />
-          <p className="text-sm text-gray-600 mt-2">
-            {form.budget_usd >= 1e9
-              ? "Государственный уровень"
-              : form.budget_usd >= 1e8
-              ? "Крупная корпорация"
-              : "Исследовательская группа"}
-          </p>
-        </div>
-
         <div className="flex items-center gap-4">
           <input
             type="checkbox"
-            id="error_correction"
+            id="standart"
             checked={form.has_error_correction}
             onChange={e => setForm({ ...form, has_error_correction: e.target.checked })}
             className="w-6 h-6 text-red-600"
           />
-          <label htmlFor="error_correction" className="text-lg">
-            Нарушитель имеет полноценную коррекцию ошибок (логические кубиты)
+          <label htmlFor="standart" className="text-lg">
+            Соответствие стандартам ФСТЕК
+          </label>
+          <input
+            type="checkbox"
+            id="data_storage"
+            checked={form.has_error_correction}
+            onChange={e => setForm({ ...form, has_error_correction: e.target.checked })}
+            className="w-6 h-6 text-red-600"
+          />
+          <label htmlFor="data_storage" className="text-lg">
+            Хранится более 100 тысяч записей субъектов персональных данных
           </label>
         </div>
 
