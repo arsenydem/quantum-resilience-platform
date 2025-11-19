@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+﻿from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Any
@@ -36,7 +36,7 @@ class NetworkNode(BaseModel):
     id: str
     type: str
     name: str
-    os: str
+    os: str | None = None
     antivirus: str = ""
     professional_software: List[str] = []
     password_policy: PasswordPolicy | None = None
@@ -79,6 +79,9 @@ async def analyze(request: AnalysisRequest):
     # Формируем описание инфраструктуры
     nodes_desc = []
     for n in request.nodes:
+        os_name = n.os or "не указана"
+        antivirus = n.antivirus or "нет"
+        
         pwd = f" (пароль ≥{n.password_policy.min_length} симв.)" if n.password_policy else ""
         soft = ", ".join(n.professional_software) if n.professional_software else "нет"
         nodes_desc.append(f"• {n.name} ({n.type}): {n.os}, антивирус: {n.antivirus or 'нет'}, ПО: {soft}{pwd}")
