@@ -12,103 +12,76 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: "firewall", label: "Файрволл" },
   { value: "wifi_ap", label: "Точка доступа Wi-Fi" },
 ];
+
 const MOCK_NODES: Omit<NetworkNode, "id">[] = [
-    {
-        type: "pc",
-        name: "DevOps Workstation",
-        os: "Windows",
-        antivirus: "Kaspersky Endpoint Security",
-        encryption: ["BitLocker"],
-        vpn: "Corporate VPN (OpenVPN)",
-        wifi: {
-            password: "StrongPass!23",
-            encryption: "WPA3-Enterprise",
-        },
-        security_policy: {
-            password_hashed: true,
-            backup_frequency: "daily",
-        },
-        personal_data: {
-            enabled: true,
-            count: 2400,
-        },
-        professional_software: ["Visual Studio", "Docker Desktop", "Terraform"],
+  {
+    type: "pc",
+    name: "DevOps Workstation",
+    os: "Windows",
+    antivirus: "Kaspersky Endpoint Security",
+    encryption: ["BitLocker"],
+    vpn: "Corporate VPN (OpenVPN)",
+    wifi: {
+      password: "StrongPass!23",
+      encryption: "WPA3-Enterprise",
     },
-    {
-        type: "firewall",
-        name: "Perimeter Firewall",
-        os: "Linux",
-        antivirus: "CrowdStrike Falcon",
-        encryption: ["IPSec"],
-        vpn: "Site-to-site VPN",
-        security_policy: {
-            password_hashed: true,
-            backup_frequency: "weekly",
-        },
-        personal_data: {
-            enabled: false,
-            count: 0,
-        },
-        professional_software: ["Suricata IDS", "Zabbix Agent"],
+    security_policy: {
+      password_hashed: true,
+      backup_frequency: "daily",
     },
-    {
-        type: "router",
-        name: "Branch Router",
-        os: "Linux",
-        antivirus: "Microsoft Defender for Endpoint",
-        wifi: {
-            password: "branch-office",
-            encryption: "WPA2-Enterprise",
-        },
-        security_policy: {
-            password_hashed: false,
-            backup_frequency: "monthly",
-        },
-        personal_data: {
-            enabled: false,
-            count: 0,
-        },
-        professional_software: ["NetFlow Collector"],
+    personal_data: {
+      enabled: true,
+      count: 2400,
     },
-    {
-        type: "pc",
-        name: "Finance Laptop",
-        os: "macOS",
-        antivirus: "ESET NOD32",
-        encryption: ["FileVault 2"],
-        wifi: {
-            password: "FinDept@2024",
-            encryption: "WPA3-Personal",
-        },
-        security_policy: {
-            password_hashed: true,
-            backup_frequency: "daily",
-        },
-        personal_data: {
-            enabled: true,
-            count: 520,
-        },
-        professional_software: ["1C", "SAP GUI", "MS Office"],
+    professional_software: ["Visual Studio", "Docker Desktop", "Terraform"],
+  },
+  {
+    type: "firewall",
+    name: "Perimeter Firewall",
+  },
+  {
+    type: "router",
+    name: "Branch Router",
+  },
+  {
+    type: "pc",
+    name: "Finance Laptop",
+    os: "macOS",
+    antivirus: "ESET NOD32",
+    encryption: ["FileVault 2"],
+    wifi: {
+      password: "FinDept@2024",
+      encryption: "WPA3-Personal",
     },
-    {
-        type: "wifi_ap",
-        name: "Guest Wi-Fi",
-        os: "Linux",
-        antivirus: "",
-        wifi: {
-            password: "",
-            encryption: "WPA2-Personal",
-        },
-        security_policy: {
-            password_hashed: false,
-            backup_frequency: "none",
-        },
-        personal_data: {
-            enabled: false,
-            count: 0,
-        },
-        professional_software: [],
+    security_policy: {
+      password_hashed: true,
+      backup_frequency: "daily",
     },
+    personal_data: {
+      enabled: true,
+      count: 520,
+    },
+    professional_software: ["1C", "SAP GUI", "MS Office"],
+  },
+  {
+    type: "wifi_ap",
+    name: "Guest Wi-Fi",
+    os: "Linux",
+    antivirus: "",
+    wifi: {
+      password: "",
+      encryption: "WPA2-Personal",
+    },
+    security_policy: {
+      password_hashed: false,
+      backup_frequency: "none",
+    },
+    personal_data: {
+      enabled: false,
+      count: 0,
+    },
+    professional_software: [],
+  },
 ];
 
 const osOptions = [
@@ -151,13 +124,12 @@ const wifiEncryptionOptions = [
   { value: "WPA2-Enterprise", label: "WPA2-Enterprise" },
   { value: "WPA3-Personal", label: "WPA3-Personal" },
   { value: "WPA3-Enterprise", label: "WPA3-Enterprise" },
-]
+];
 
 const withWeight = (node: NetworkNode): NetworkNode => ({
   ...node,
   weight: getNodeWeight(node.name, node.type),
 });
-
 
 export default function PlatformForm({
   onNext,
@@ -175,7 +147,7 @@ export default function PlatformForm({
       withWeight({
         ...mock,
         id: `mock-${index}-${stamp}`,
-      } as NetworkNode)
+      } as NetworkNode),
     );
     setNodes(prepared);
     setShowForm(false);
@@ -214,36 +186,32 @@ export default function PlatformForm({
       count: Number(data.get("personal_data_count") || 0) || 0,
     };
 
+    // 👇 связи (id других узлов)
+    const connections = data.getAll("connections") as string[];
+
     const newNode: NetworkNode = {
       id: editing?.id || Date.now().toString(),
       type: data.get("type") as NodeType,
       name: (data.get("name") as string) || "",
-      // 1b. Перечень программ
       professional_software: ((data.get("software") as string) || "")
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
-      // 1a. OS только для ПК (и при желании для серверов)
       os: (data.get("os") as string) || undefined,
-      // 1c. Антивирус
       antivirus: (data.get("antivirus") as string) || undefined,
-      // 1d. Шифрование
       encryption: encryption.length ? encryption : undefined,
-      // 1e. VPN
       vpn: ((data.get("vpn") as string) || "").trim() || undefined,
-      // 5. Политика безопасности
       security_policy,
-      // 7. Точки доступа Wi-Fi
       wifi,
-      // 8. Хранение персональных данных
       personal_data,
+      connections, // 👈 сюда складываем выбранные связи
     };
 
     const nodeWithWeight = withWeight(newNode);
 
     if (editing) {
       setNodes((prev) =>
-        prev.map((n) => (n.id === editing.id ? nodeWithWeight : n))
+        prev.map((n) => (n.id === editing.id ? nodeWithWeight : n)),
       );
       setEditing(null);
     } else {
@@ -292,7 +260,7 @@ export default function PlatformForm({
             }}
             className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
           >
-          + Добавить узел
+            + Добавить узел
           </button>
         </div>
       </div>
@@ -369,14 +337,13 @@ export default function PlatformForm({
                 </div>
               </div>
 
-              {/* 1. Персональный компьютер (и по желанию сервер) */}
-              {(currentType === "pc") && (
+              {/* 1. Персональный компьютер */}
+              {currentType === "pc" && (
                 <div className="space-y-4 border-t pt-4">
                   <h4 className="font-semibold text-lg">
                     Параметры персонального компьютера
                   </h4>
 
-                  {/* 1a. OS */}
                   <div>
                     <label className="block text-sm font-medium">
                       Операционная система
@@ -395,7 +362,6 @@ export default function PlatformForm({
                     </select>
                   </div>
 
-                  {/* 1b. Перечень программ */}
                   <div>
                     <label className="block text-sm font-medium">
                       Перечень программ (через запятую)
@@ -408,7 +374,6 @@ export default function PlatformForm({
                     />
                   </div>
 
-                  {/* 1c. Антивирус */}
                   <div>
                     <label className="block text-sm font-medium">
                       Антивирус / EDR
@@ -427,7 +392,6 @@ export default function PlatformForm({
                     </select>
                   </div>
 
-                  {/* 1d. Шифрование */}
                   <div>
                     <label className="block text-sm font-medium mb-2">
                       Средства шифрования
@@ -453,7 +417,6 @@ export default function PlatformForm({
                     </div>
                   </div>
 
-                  {/* 1e. VPN */}
                   <div>
                     <label className="block text-sm font-medium">VPN</label>
                     <input
@@ -504,7 +467,7 @@ export default function PlatformForm({
                 </div>
               )}
 
-              {/* 5. Политика безопасности (общая для узла) */}
+              {/* 5. Политика безопасности */}
               <div className="border-t pt-4 space-y-4">
                 <h4 className="font-semibold text-lg">Политика безопасности</h4>
 
@@ -539,6 +502,46 @@ export default function PlatformForm({
                   </select>
                 </div>
               </div>
+
+              {/* 6. Связи с другими узлами */}
+              {nodes.length > 0 && (
+                <div className="border-t pt-4 space-y-3">
+                  <h4 className="font-semibold text-lg">
+                    Связи с другими узлами
+                  </h4>
+                  <p className="text-xs text-gray-500">
+                    Выберите, с какими узлами этот элемент связан
+                    (кабель, логический канал и т.п.).
+                  </p>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                    {nodes
+                      .filter((n) => !editing || n.id !== editing.id)
+                      .map((n) => (
+                        <label
+                          key={n.id}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            name="connections"
+                            value={n.id}
+                            className="w-4 h-4"
+                            defaultChecked={editing?.connections?.includes(
+                              n.id,
+                            )}
+                          />
+                          <span>
+                            {n.name}{" "}
+                            <span className="text-xs text-gray-500">
+                              ({n.type})
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                  </div>
+                </div>
+              )}
+
               {/* Кнопки управления */}
               <div className="flex gap-4 justify-end pt-4">
                 <button
@@ -565,6 +568,3 @@ export default function PlatformForm({
     </div>
   );
 }
-
-
-

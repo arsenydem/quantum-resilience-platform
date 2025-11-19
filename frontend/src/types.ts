@@ -32,17 +32,18 @@ export interface NetworkNode {
     encryption: string;
   };
 
-  security_policy: {
+  security_policy?: {
     password_hashed: boolean;
     backup_frequency: string;
   };
 
-  personal_data: {
+  personal_data?: {
     enabled: boolean;
     count: number;
   };
 
-  professional_software: string[];
+  professional_software?: string[];
+  connections?: string[];
 }
 export interface ThreatModel {
   quantum_capability: string;

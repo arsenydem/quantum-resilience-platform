@@ -10,7 +10,7 @@ export default function App() {
       <Route path="/threat" element={<ThreatPage />} />
       <Route path="/report" element={<ReportPage />} />
 
-      <Route path="*" element={<Navigate to="/login" />} />
+      <Route path="*" element={<Navigate to="/platform" />} />
     </Routes>
   );
 }

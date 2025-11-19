@@ -118,6 +118,7 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
   platformNodes.forEach((asset, index) => {
     const assetId = `asset-${asset.id || index}`;
     const assetWeight = asset.weight ?? getNodeWeight(asset.name, asset.type);
+
     nodes.push({
       id: assetId,
       title: asset.name || `Узел ${index + 1}`,
@@ -134,6 +135,7 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
     ) => {
       if (!subtitle) return;
       const nodeId = `${assetId}-f-${counter++}`;
+
       nodes.push({
         id: nodeId,
         title,
@@ -141,13 +143,20 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
         weight,
         variant,
       });
+
       edges.push({
         id: `${assetId}-${nodeId}`,
         source: assetId,
         target: nodeId,
         label: typeof weight === "number" ? `w=${weight}` : undefined,
-        variant: variant === "risk" ? "risk" : variant === "info" ? "info" : "control",
+        variant:
+          variant === "risk"
+            ? "risk"
+            : variant === "info"
+            ? "info"
+            : "control",
       });
+
       hasEdges = true;
     };
 
@@ -156,11 +165,21 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
     }
 
     if (asset.antivirus) {
-      addFeature("Антивирус", asset.antivirus, "control", getNodeWeight(asset.antivirus));
+      addFeature(
+        "Антивирус",
+        asset.antivirus,
+        "control",
+        getNodeWeight(asset.antivirus),
+      );
     }
 
     asset.encryption?.forEach((scheme) => {
-      addFeature("Шифрование диска", scheme, "control", getNodeWeight(scheme));
+      addFeature(
+        "Шифрование диска",
+        scheme,
+        "control",
+        getNodeWeight(scheme),
+      );
     });
 
     if (asset.wifi) {
@@ -204,15 +223,19 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
       );
     }
 
-    const personalDataLabel = asset.personal_data.enabled
-      ? `${asset.personal_data.count} записей`
+    // personal_data может быть undefined → нормализуем
+    const pd = asset.personal_data ?? { enabled: false, count: 0 };
+
+    const personalDataLabel = pd.enabled
+      ? `${pd.count} записей`
       : "не обрабатывается";
+
     addFeature(
       "Персональные данные",
       personalDataLabel,
-      asset.personal_data.enabled ? "risk" : "info",
-      asset.personal_data.enabled
-        ? Math.min(10, Math.max(3, asset.personal_data.count / 10))
+      pd.enabled ? "risk" : "info",
+      pd.enabled
+        ? Math.min(10, Math.max(3, pd.count / 10))
         : 3,
     );
 
