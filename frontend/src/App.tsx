@@ -1,45 +1,31 @@
-import { useState } from "react";
-import Login from "./components/Login";
-import PlatformForm from "./components/PlatformForm";
-import ThreatModelForm from "./components/ThreatModelForm";
-import ReportView from "./components/ReportView";
-import { NetworkNode, ThreatModel, AnalysisResult } from "./types";
-import { api } from "./lib/api";
+import { Routes, Route, Navigate } from "react-router-dom";
+import LoginPage from "./pages/LoginPage.tsx";
+import PlatformPage from "./pages/PlatformPage.tsx";
+import ThreatPage from "./pages/ThreatPage.tsx";
+import ReportPage from "./pages/ReportPage.tsx";
 
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [step, setStep] = useState<"login" | "platform" | "threat" | "report">("login");
-  const [nodes, setNodes] = useState<NetworkNode[]>([]);
-  const [report, setReport] = useState<AnalysisResult | null>(null);
-
-  if (!token || step === "login") {
-    return <Login onLogin={(t) => { localStorage.setItem("token", t); setToken(t); setStep("platform"); }} />;
-  }
+  const token = localStorage.getItem("token");
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-indigo-800 text-white p-6 shadow-xl">
-        <h1 className="text-3xl font-bold text-center">
-          КОМПЛЕКС АНАЛИЗА УСТОЙЧИВОСТИ К КВАНТОВЫМ УГРОЗАМ
-        </h1>
-      </header>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
 
-      {step === "platform" && (
-        <PlatformForm onNext={(n) => { setNodes(n); setStep("threat"); }} />
-      )}
+      {/* защищённые страницы */}
+      <Route
+        path="/platform"
+        element={token ? <PlatformPage /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/threat"
+        element={token ? <ThreatPage /> : <Navigate to="/login" />}
+      />
+      <Route
+        path="/report"
+        element={token ? <ReportPage /> : <Navigate to="/login" />}
+      />
 
-      {step === "threat" && (
-        <ThreatModelForm
-          onSubmit={async (threat: ThreatModel) => {
-            const result = await api.analyze(nodes, threat);
-            setReport(result);
-            setStep("report");
-          }}
-          onBack={() => setStep("platform")}
-        />
-      )}
-
-      {step === "report" && report && <ReportView report={report} />}
-    </div>
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
   );
 }

@@ -10,10 +10,6 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: "router", label: "Маршрутизатор" },
   { value: "firewall", label: "Файрволл" },
   { value: "wifi_ap", label: "Точка доступа Wi-Fi" },
-  // Если в типах есть server / database / blockchain_node – их можно тоже оставить:
-  // { value: "server", label: "Сервер" },
-  // { value: "database", label: "База данных" },
-  // { value: "blockchain_node", label: "Узел блокчейна" },
 ];
 
 const osOptions = [
@@ -228,7 +224,7 @@ export default function PlatformForm({
               </div>
 
               {/* 1. Персональный компьютер (и по желанию сервер) */}
-              {(currentType === "pc" || currentType === "server") && (
+              {(currentType === "pc") && (
                 <div className="space-y-4 border-t pt-4">
                   <h4 className="font-semibold text-lg">
                     Параметры персонального компьютера
@@ -397,37 +393,6 @@ export default function PlatformForm({
                   </select>
                 </div>
               </div>
-
-              {/* 8. Хранение персональных данных */}
-              <div className="border-t pt-4 space-y-4">
-                <h4 className="font-semibold text-lg">
-                  Хранение персональных данных
-                </h4>
-
-                <label className="flex items-center gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    name="personal_data"
-                    className="w-4 h-4"
-                    defaultChecked={(editing as any)?.personal_data?.enabled}
-                  />
-                  <span>На этом узле хранятся персональные данные</span>
-                </label>
-
-                <div>
-                  <label className="block text-sm font-medium">
-                    Примерное количество записей (шт.)
-                  </label>
-                  <input
-                    type="number"
-                    name="personal_data_count"
-                    min={0}
-                    className="w-full mt-1 p-3 border rounded-lg"
-                    defaultValue={(editing as any)?.personal_data?.count || 0}
-                  />
-                </div>
-              </div>
-
               {/* Кнопки управления */}
               <div className="flex gap-4 justify-end pt-4">
                 <button
