@@ -114,9 +114,12 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
   const edges: GraphEdgeDescriptor[] = [];
   let hasEdges = false;
   let counter = 0;
+  const assetIdMap = new Map<string, string>();
 
   platformNodes.forEach((asset, index) => {
-    const assetId = `asset-${asset.id || index}`;
+    const assetKey = asset.id || `asset-${index}`;
+    const assetId = `asset-${assetKey}`;
+    assetIdMap.set(assetKey, assetId);
     const assetWeight = asset.weight ?? getNodeWeight(asset.name, asset.type);
 
     nodes.push({
@@ -241,6 +244,40 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
 
     asset.professional_software?.forEach((soft) => {
       addFeature("ПО", soft, "info", getNodeWeight(soft));
+    });
+  });
+
+  const seenConnections = new Set<string>();
+  platformNodes.forEach((asset) => {
+    if (!asset.connections?.length) {
+      return;
+    }
+    const sourceKey = asset.id || "";
+    const sourceId = sourceKey ? assetIdMap.get(sourceKey) : undefined;
+    if (!sourceId) {
+      return;
+    }
+    asset.connections.forEach((targetKey) => {
+      const targetId = assetIdMap.get(targetKey);
+      if (!targetId) {
+        return;
+      }
+      const combo =
+        sourceId < targetId
+          ? `${sourceId}::${targetId}`
+          : `${targetId}::${sourceId}`;
+      if (seenConnections.has(combo)) {
+        return;
+      }
+      seenConnections.add(combo);
+      edges.push({
+        id: `conn-${combo}`,
+        source: sourceId,
+        target: targetId,
+        label: "Связь",
+        variant: "info",
+      });
+      hasEdges = true;
     });
   });
 
