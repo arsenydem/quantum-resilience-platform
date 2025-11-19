@@ -56,12 +56,26 @@ export interface ThreatModel {
   has_error_correction: boolean;
 }
 
+export interface AttackGraphData {
+  nodes: Array<{ id: string; type?: string; data: { label: string } }>;
+  edges: Array<{ id: string; source: string; target: string; label?: string }>;
+}
+
+export interface LocalScore {
+  value: number;
+  weight_ratio: number;
+  connection_ratio: number;
+  topology_bonus?: number;
+  control_details: string[];
+  findings?: string[];
+}
+
 export interface AnalysisResult {
   score: number;
   summary: string;
   recommendations: string[];
-  attack_graph: {
-    nodes: Array<{ id: string; type?: string; data: { label: string } }>;
-    edges: Array<{ id: string; source: string; target: string; label?: string }>;
-  };
+  attack_graph: AttackGraphData;
+  ideal_graph?: AttackGraphData;
+  ideal_nodes?: NetworkNode[];
+  local_score?: LocalScore;
 }
