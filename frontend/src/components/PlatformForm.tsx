@@ -11,6 +11,7 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: "router", label: "Маршрутизатор" },
   { value: "firewall", label: "Файрволл" },
   { value: "wifi_ap", label: "Точка доступа Wi-Fi" },
+  { value: "user", label: "Пользователь" }, // 👈 новый тип
 ];
 
 const MOCK_NODES: Omit<NetworkNode, "id">[] = [
@@ -34,10 +35,12 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
       count: 2400,
     },
     professional_software: ["Visual Studio", "Docker Desktop", "Terraform"],
+    auth_type: "Пароль",
   },
   {
     type: "firewall",
     name: "Perimeter Firewall",
+    firewall_type: "Next-Generation Firewall",
   },
   {
     type: "router",
@@ -62,6 +65,7 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
       count: 520,
     },
     professional_software: ["1C", "SAP GUI", "MS Office"],
+    auth_type: "Смарт-карта",
   },
   {
     type: "wifi_ap",
@@ -82,6 +86,33 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
     },
     professional_software: [],
   },
+];
+
+// 1f. Типы аутентификации
+const authTypes = [
+  "Пароль",
+  "PIN-код",
+  "Графический пароль",
+  "Отпечаток пальца",
+  "Распознавание лица",
+  "По радужке глаза",
+  "Смарт-карта",
+  "USB-токен",
+  "Ключ безопасности FIDO2",
+  "Мобильный пропуск",
+  "Биометрия вен ладони",
+  "Голосовая аутентификация",
+  "Комбинированные методы",
+];
+
+// 6. Типы файрволлов
+const firewallTypes = [
+  "Пакетный фильтр",
+  "Stateful Inspection",
+  "Proxy-файрвол",
+  "Next-Generation Firewall",
+  "WAF",
+  "Персональный файрволл",
 ];
 
 const osOptions = [
@@ -186,8 +217,9 @@ export default function PlatformForm({
       count: Number(data.get("personal_data_count") || 0) || 0,
     };
 
-    // 👇 связи (id других узлов)
     const connections = data.getAll("connections") as string[];
+
+    const accessLevelValue = data.get("access_level") as string | null;
 
     const newNode: NetworkNode = {
       id: editing?.id || Date.now().toString(),
@@ -201,10 +233,19 @@ export default function PlatformForm({
       antivirus: (data.get("antivirus") as string) || undefined,
       encryption: encryption.length ? encryption : undefined,
       vpn: ((data.get("vpn") as string) || "").trim() || undefined,
+      // 1f. Тип аутентификации
+      auth_type: ((data.get("auth_type") as string) || "").trim() || undefined,
+      // 6. Тип файрволла
+      firewall_type:
+        ((data.get("firewall_type") as string) || "").trim() || undefined,
+      // 8. Уровень доступа пользователя
+      access_level: accessLevelValue
+        ? (Number(accessLevelValue) as 1 | 2 | 3)
+        : undefined,
       security_policy,
       wifi,
       personal_data,
-      connections, // 👈 сюда складываем выбранные связи
+      connections,
     };
 
     const nodeWithWeight = withWeight(newNode);
@@ -294,7 +335,6 @@ export default function PlatformForm({
         </button>
       </div>
 
-      {/* Модальное окно формы */}
       {showForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-8 max-w-2xl w-full max-h-screen overflow-y-auto">
@@ -303,12 +343,10 @@ export default function PlatformForm({
             </h3>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Базовые поля: тип + имя */}
+              {/* Тип + имя */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium">
-                    Тип узла
-                  </label>
+                  <label className="block text-sm font-medium">Тип узла</label>
                   <select
                     name="type"
                     required
@@ -426,6 +464,51 @@ export default function PlatformForm({
                       className="w-full mt-1 p-3 border rounded-lg"
                     />
                   </div>
+
+                  {/* 1f. Тип аутентификации */}
+                  <div>
+                    <label className="block text-sm font-medium">
+                      Тип аутентификации
+                    </label>
+                    <select
+                      name="auth_type"
+                      className="w-full mt-1 p-3 border rounded-lg"
+                      defaultValue={(editing as any)?.auth_type || ""}
+                    >
+                      <option value="">Нет / другое</option>
+                      {authTypes.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. Файрволл */}
+              {currentType === "firewall" && (
+                <div className="space-y-4 border-t pt-4">
+                  <h4 className="font-semibold text-lg">
+                    Параметры файрволла
+                  </h4>
+                  <div>
+                    <label className="block text-sm font-medium">
+                      Тип файрволла
+                    </label>
+                    <select
+                      name="firewall_type"
+                      className="w-full mt-1 p-3 border rounded-lg"
+                      defaultValue={(editing as any)?.firewall_type || ""}
+                    >
+                      <option value="">Не указано</option>
+                      {firewallTypes.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -467,7 +550,34 @@ export default function PlatformForm({
                 </div>
               )}
 
-              {/* 5. Политика безопасности */}
+              {/* 8. Пользователь */}
+              {currentType === "user" && (
+                <div className="space-y-4 border-t pt-4">
+                  <h4 className="font-semibold text-lg">
+                    Параметры пользователя
+                  </h4>
+                  <div>
+                    <label className="block text-sm font-medium">
+                      Уровень доступа
+                    </label>
+                    <select
+                      name="access_level"
+                      className="w-full mt-1 p-3 border rounded-lg"
+                      defaultValue={
+                        editing?.access_level
+                          ? String(editing.access_level)
+                          : "1"
+                      }
+                    >
+                      <option value="1">Уровень доступа 1</option>
+                      <option value="2">Уровень доступа 2</option>
+                      <option value="3">Уровень доступа 3</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Политика безопасности + персональные данные */}
               <div className="border-t pt-4 space-y-4">
                 <h4 className="font-semibold text-lg">Политика безопасности</h4>
 
@@ -501,17 +611,45 @@ export default function PlatformForm({
                     <option value="monthly">Ежемесячно</option>
                   </select>
                 </div>
+
+                {/* Хранение персональных данных */}
+                <div className="pt-2 border-t mt-2 space-y-2">
+                  <h5 className="font-semibold text-sm">
+                    Хранение персональных данных
+                  </h5>
+                  <label className="flex items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      name="personal_data"
+                      className="w-4 h-4"
+                      defaultChecked={editing?.personal_data?.enabled}
+                    />
+                    <span>На узле обрабатываются / хранятся персональные данные</span>
+                  </label>
+                  <div>
+                    <label className="block text-sm font-medium">
+                      Оценочное количество записей
+                    </label>
+                    <input
+                      type="number"
+                      name="personal_data_count"
+                      min={0}
+                      className="w-full mt-1 p-3 border rounded-lg"
+                      defaultValue={editing?.personal_data?.count ?? 0}
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* 6. Связи с другими узлами */}
+              {/* Связи с другими узлами */}
               {nodes.length > 0 && (
                 <div className="border-t pt-4 space-y-3">
                   <h4 className="font-semibold text-lg">
                     Связи с другими узлами
                   </h4>
                   <p className="text-xs text-gray-500">
-                    Выберите, с какими узлами этот элемент связан
-                    (кабель, логический канал и т.п.).
+                    Выберите, с какими узлами этот элемент связан (кабель,
+                    логический канал и т.п.).
                   </p>
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                     {nodes
@@ -542,7 +680,7 @@ export default function PlatformForm({
                 </div>
               )}
 
-              {/* Кнопки управления */}
+              {/* Кнопки */}
               <div className="flex gap-4 justify-end pt-4">
                 <button
                   type="button"

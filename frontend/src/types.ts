@@ -4,7 +4,8 @@ export type NodeType =
   | "switch"
   | "router"
   | "firewall"
-  | "wifi_ap";
+  | "wifi_ap"
+  | "user";
 
 export interface PasswordPolicy {
   min_length: number;
@@ -19,7 +20,11 @@ export interface NetworkNode {
   type: NodeType;
   name: string;
 
-  /** Computed security weight (0..10) assigned on form submit. */
+  auth_type?: string;
+
+  firewall_type?: string;
+
+  access_level?: 1 | 2 | 3;
   weight?: number;
 
   os?: string;

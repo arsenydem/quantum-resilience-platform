@@ -1,6 +1,6 @@
 // src/components/NodeCard.tsx
 import { NetworkNode, NodeType } from "../types";
-import { Trash2, Edit2, Monitor, Printer, Router, Shield, Wifi, Box } from "lucide-react";
+import { Trash2, Edit2, Monitor, Printer, Router, Shield, Wifi, Box, User } from "lucide-react";
 
 interface Props {
   node: NetworkNode;
@@ -15,6 +15,7 @@ const iconByType: Record<NodeType, JSX.Element> = {
   router: <Router className="w-8 h-8 text-indigo-600" />,
   firewall: <Shield className="w-8 h-8 text-indigo-600" />,
   wifi_ap: <Wifi className="w-8 h-8 text-indigo-600" />,
+  user: <User className="w-8 h-8 text-indigo-600" />,
 };
 
 export default function NodeCard({ node, onEdit, onDelete }: Props) {
