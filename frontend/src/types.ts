@@ -1,4 +1,10 @@
-export type NodeType = "pc" | "switch" | "server" | "database" | "blockchain_node";
+export type NodeType =
+  | "pc"
+  | "printer"
+  | "switch"
+  | "router"
+  | "firewall"
+  | "wifi_ap";
 
 export interface PasswordPolicy {
   min_length: number;
@@ -12,12 +18,29 @@ export interface NetworkNode {
   id: string;
   type: NodeType;
   name: string;
-  os: string;
-  antivirus: string;
-  professional_software: string[];
-  password_policy?: PasswordPolicy;
-}
 
+  os?: string;
+  antivirus?: string;
+  encryption?: string[];
+  vpn?: string;
+
+  wifi?: {
+    password: string;
+    encryption: string;
+  };
+
+  security_policy: {
+    password_hashed: boolean;
+    backup_frequency: string;
+  };
+
+  personal_data: {
+    enabled: boolean;
+    count: number;
+  };
+
+  professional_software: string[];
+}
 export interface ThreatModel {
   quantum_capability: string;
   budget_usd: number;
