@@ -65,7 +65,7 @@ class NetworkNode(BaseModel):
     auth_type: str | None = None
     firewall_type: str | None = None
     access_level: int | None = None
-    password_policy: PasswordPolicy | None = None  # legacy field from old UI
+    password_policy: PasswordPolicy | None = None
 
 
 class ThreatModel(BaseModel):
@@ -95,7 +95,9 @@ If you cannot fill some field, keep it an empty list/array."""
 
 ENDPOINT_TYPES = {"pc", "user"}
 STRONG_WIFI_PREFIXES = ("wpa2", "wpa3")
-DEFAULT_CONTROLS = {
+SIEM_KEYWORDS = ("siem", "soc", "xdr", "elk", "observ")
+BACKUP_KEYWORDS = ("veeam", "backup", "snapshot", "replica")
+SUPPORT_CONTROLS_DEFAULT = {
     "antivirus": "QuantumShield EDR",
     "disk_encryption": "Full-disk AES-256",
     "vpn": "ZeroTrust VPN",
@@ -104,7 +106,7 @@ DEFAULT_CONTROLS = {
     "wifi_encryption": "WPA3-Enterprise",
     "firewall": "Next-Generation Firewall",
 }
-FSTEK_CONTROLS = {
+SUPPORT_CONTROLS_FSTEK = {
     "antivirus": "Kaspersky Endpoint Security",
     "disk_encryption": "ViPNet Client",
     "vpn": "ViPNet TLS",
@@ -113,15 +115,31 @@ FSTEK_CONTROLS = {
     "wifi_encryption": "WPA3-Enterprise",
     "firewall": "ViPNet Coordinator NGFW",
 }
-FSTEK_RECOMMENDATION_MAP = {
-    "antivirus_missing": "Разверните Kaspersky Endpoint Security или другой сертифицированный ФСТЭК EDR на конечных узлах.",
+GENERAL_RECOMMENDATIONS = {
+    "antivirus_missing": "Install certified endpoint protection (EDR/antivirus) on every workstation.",
+    "disk_missing": "Encrypt disks on workstations and servers (full-disk AES-256).",
+    "vpn_missing": "Introduce secure VPN/Zero-Trust access for remote segments.",
+    "mfa_missing": "Protect privileged accounts with MFA or hardware tokens.",
+    "wifi_insecure": "Switch Wi-Fi to WPA3-Enterprise and set strong passwords.",
+    "password_plain": "Hash stored passwords and forbid plaintext credential storage.",
+    "backup_missing": "Schedule daily offline backups stored in an isolated network.",
+    "firewall_unknown": "Deploy an NGFW/WAF and document traffic segmentation.",
+    "firewall_absent": "Add a perimeter firewall to separate internal segments.",
+    "siem_missing": "Deploy SIEM/SOC to aggregate logs from all systems.",
+    "personal_data_unprotected": "Encrypt personal data stores and restrict access to them.",
+}
+FSTEK_RECOMMENDATIONS = {
+    "antivirus_missing": "Разверните Kaspersky Endpoint Security или другой сертифицированный ФСТЭК EDR.",
     "disk_missing": "Зашифруйте рабочие станции с помощью ViPNet Client / Secret Disk (ФСТЭК).",
-    "vpn_missing": "Организуйте защищённый канал ViPNet TLS или Континент для удалённого доступа.",
-    "mfa_missing": "Включите ФСТЭК-сертифицированный второй фактор (Rutoken, JaCarta) для администраторов.",
-    "wifi_insecure": "Настройте корпоративный Wi-Fi в режиме WPA3-Enterprise с сертификатами и сложным паролем.",
-    "backup_missing": "Запланируйте ежедневные оффлайн-резервные копии и храните их на доверенной площадке (мониторинг ФСТЭК).",
-    "firewall_unknown": "Замените межсетевой экран на ViPNet Coordinator NGFW или другой продукт с сертификатом ФСТЭК.",
-    "personal_data_unprotected": "Для хранилищ ПДн включите шифрование ViPNet и аппаратные токены доступа.",
+    "vpn_missing": "Организуйте защищённый канал на ViPNet TLS или Континент.",
+    "mfa_missing": "Включите Rutoken/JaCarta для администраторов и критичных ролей.",
+    "wifi_insecure": "Настройте Wi-Fi в режиме WPA3-Enterprise с сертификатами ФСТЭК.",
+    "password_plain": "Храните пароли только в зашифрованном виде и контролируйте управление ключами.",
+    "backup_missing": "Настройте ежедневные оффлайн-копии с контролем ФСТЭК.",
+    "firewall_unknown": "Замените МЭ на ViPNet Coordinator NGFW или аналог, имеющий сертификат.",
+    "firewall_absent": "Добавьте сертифицированный ФСТЭК межсетевой экран между сегментами.",
+    "siem_missing": "Разверните ФСТЭК-сертифицированный SIEM/SOC (ОКБ САПР, РусГидро и т.д.).",
+    "personal_data_unprotected": "Защитите ПДн ViPNet-шифрованием и аппаратными токенами доступа.",
 }
 
 
@@ -166,22 +184,27 @@ def normalize_backup(freq: str | None) -> str:
 
 
 def ensure_security_policy(node_dict: Dict[str, Any]) -> Dict[str, Any]:
-    policy = node_dict.get("security_policy") or {}
-    policy["password_hashed"] = True
-    policy["backup_frequency"] = "daily"
-    node_dict["security_policy"] = policy
+    node_dict["security_policy"] = {
+        "password_hashed": True,
+        "backup_frequency": "daily",
+    }
     return node_dict
 
 
 def apply_ideal_defaults(node_dict: Dict[str, Any], controls: Dict[str, str]) -> Dict[str, Any]:
     ideal = dict(node_dict)
     ideal["weight"] = 10.0
-    ideal["security_policy"] = {"password_hashed": True, "backup_frequency": "daily"}
+    ensure_security_policy(ideal)
     ideal["wifi"] = {
         "password": controls["wifi_password"],
         "encryption": controls["wifi_encryption"],
     }
     return ideal
+
+
+def software_contains(values: List[str], keywords: Tuple[str, ...]) -> bool:
+    normalized = [v.lower() for v in values]
+    return any(any(keyword in value for keyword in keywords) for value in normalized)
 
 
 def evaluate_security(
@@ -220,13 +243,23 @@ def evaluate_security(
     finding_texts: set[str] = set()
     finding_codes: set[str] = set()
     ideal_nodes: List[Dict[str, Any]] = []
-    controls = FSTEK_CONTROLS if fstec_only else DEFAULT_CONTROLS
+    controls = SUPPORT_CONTROLS_FSTEK if fstec_only else SUPPORT_CONTROLS_DEFAULT
+
+    firewall_present = any(node.type == "firewall" for node in nodes)
+    siem_present = False
+    backup_platform_present = False
 
     for node in nodes:
         ideal = apply_ideal_defaults(node.model_dump(mode="python"), controls)
         ideal.setdefault("professional_software", node.professional_software or [])
         ideal.setdefault("connections", node.connections or [])
-        ideal.setdefault("encryption", [])
+        ideal.setdefault("encryption", node.encryption or [])
+
+        normalized_soft = [s.lower() for s in node.professional_software or []]
+        if software_contains(normalized_soft, SIEM_KEYWORDS):
+            siem_present = True
+        if software_contains(normalized_soft, BACKUP_KEYWORDS):
+            backup_platform_present = True
 
         is_endpoint = node.type in ENDPOINT_TYPES
 
@@ -237,7 +270,7 @@ def evaluate_security(
             else:
                 control_adjustments -= 12
                 control_details.append(f"-12 {node.name}: antivirus missing")
-                finding_texts.add("Install certified EDR on endpoints")
+                finding_texts.add("Install certified endpoint protection")
                 finding_codes.add("antivirus_missing")
             ideal["antivirus"] = controls["antivirus"]
 
@@ -247,7 +280,7 @@ def evaluate_security(
             else:
                 control_adjustments -= 8
                 control_details.append(f"-8 {node.name}: disk encryption missing")
-                finding_texts.add("Enable disk encryption on laptops/workstations")
+                finding_texts.add("Enable disk encryption on endpoints")
                 finding_codes.add("disk_missing")
             ideal["encryption"] = [controls["disk_encryption"]]
 
@@ -317,13 +350,14 @@ def evaluate_security(
             ensure_security_policy(ideal)
 
         if node.type == "firewall":
+            firewall_present = True
             if node.firewall_type:
                 control_adjustments += 6
                 control_details.append(f"+6 {node.name}: firewall type defined")
             else:
                 control_adjustments -= 8
                 control_details.append(f"-8 {node.name}: firewall class unknown")
-                finding_texts.add("Deploy NGFW/WAF with proper certification")
+                finding_texts.add("Deploy NGFW/WAF with proper classification")
                 finding_codes.add("firewall_unknown")
             ideal["firewall_type"] = controls["firewall"]
 
@@ -338,10 +372,71 @@ def evaluate_security(
                 finding_codes.add("personal_data_unprotected")
                 ideal["encryption"] = [controls["disk_encryption"]]
                 ideal["auth_type"] = controls["mfa"]
-        elif pd_sensitive:
-            control_details.append("+0 system processes PD separately, ensure safeguards")
 
         ideal_nodes.append(ideal)
+
+    support_nodes: List[Dict[str, Any]] = []
+    endpoint_ids = [node.id for node in nodes]
+
+    if not firewall_present:
+        control_adjustments -= 10
+        control_details.append("-10 No perimeter firewall in the architecture")
+        finding_texts.add("Add a perimeter firewall between network segments")
+        finding_codes.add("firewall_absent")
+        support_nodes.append({
+            "id": "ideal-firewall",
+            "type": "firewall",
+            "name": "Ideal NGFW",
+            "firewall_type": controls["firewall"],
+            "weight": 10.0,
+            "connections": endpoint_ids,
+            "professional_software": ["Segmentation", "IPS"],
+            "security_policy": {"password_hashed": True, "backup_frequency": "daily"},
+        })
+
+    if not siem_present:
+        control_adjustments -= 8
+        control_details.append("-8 No SIEM/SOC collecting events")
+        finding_texts.add("Deploy SIEM/SOC to aggregate logs")
+        finding_codes.add("siem_missing")
+        support_nodes.append({
+            "id": "ideal-siem",
+            "type": "pc",
+            "name": "Central SIEM",
+            "weight": 10.0,
+            "professional_software": ["Managed SIEM", "SOAR"],
+            "connections": endpoint_ids,
+            "security_policy": {"password_hashed": True, "backup_frequency": "daily"},
+        })
+
+    if not backup_platform_present:
+        control_adjustments -= 6
+        control_details.append("-6 No dedicated backup appliance")
+        finding_texts.add("Deploy a dedicated backup appliance")
+        finding_codes.add("backup_missing")
+        support_nodes.append({
+            "id": "ideal-backup",
+            "type": "pc",
+            "name": "Backup Appliance",
+            "weight": 10.0,
+            "professional_software": ["Veeam", "Snapshot"],
+            "connections": endpoint_ids,
+            "security_policy": {"password_hashed": True, "backup_frequency": "daily"},
+        })
+
+    if pd_sensitive and not any(node.personal_data and node.personal_data.enabled for node in nodes):
+        support_nodes.append({
+            "id": "ideal-pd-store",
+            "type": "pc",
+            "name": "Protected PD storage",
+            "weight": 10.0,
+            "personal_data": {"enabled": True, "count": 1000},
+            "encryption": [controls["disk_encryption"]],
+            "connections": endpoint_ids,
+            "security_policy": {"password_hashed": True, "backup_frequency": "daily"},
+        })
+
+    ideal_nodes.extend(support_nodes)
 
     topology_bonus = 0.0
     if total_nodes > 2:
@@ -368,14 +463,19 @@ def evaluate_security(
 
 
 def build_fstek_recommendations(finding_codes: List[str]) -> List[str]:
-    recs = []
-    for code in finding_codes:
-        text = FSTEK_RECOMMENDATION_MAP.get(code)
-        if text:
-            recs.append(text)
+    recs = [FSTEK_RECOMMENDATIONS[code] for code in finding_codes if code in FSTEK_RECOMMENDATIONS]
     if not recs:
         recs.append("Сохраняйте актуальные сертификаты ФСТЭК и подтверждайте соответствие ежегодно.")
     return recs[:10]
+
+
+def build_general_recommendations(finding_codes: List[str]) -> List[str]:
+    seen: List[str] = []
+    for code in finding_codes:
+        text = GENERAL_RECOMMENDATIONS.get(code)
+        if text and text not in seen:
+            seen.append(text)
+    return seen
 
 
 @app.post("/api/analyze")
@@ -404,12 +504,11 @@ async def analyze(request: AnalysisRequest):
 
     extra_clause = "Все рекомендации должны соответствовать требованиям ФСТЭК." if fstec_mode else ""
 
-    user_prompt = f"""Текущая инфраструктура:
-{chr(10).join(nodes_desc) if nodes_desc else 'узлы отсутствуют'}
-
-Локальная модель оценила стойкость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме. {extra_clause}
-Ниже подробные данные:
-""" + "`json\n" + payload_json + "\n`"
+    user_prompt = (
+        f"Текущая инфраструктура:\n{chr(10).join(nodes_desc) if nodes_desc else 'узлы отсутствуют'}\n\n"
+        f"Локальная модель оценила стойкость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме. {extra_clause}\n"
+        f"Ниже подробные данные:\n`json\n{payload_json}\n`"
+    )
 
     try:
         response = client.chat.completions.create(
@@ -438,11 +537,16 @@ async def analyze(request: AnalysisRequest):
             llm_recommendations = [str(llm_recommendations)]
         attack_graph = data.get("attack_graph", {"nodes": [], "edges": []})
 
-        recommendations = (
-            build_fstek_recommendations(metrics.get("finding_codes", []))
-            if fstec_mode
-            else llm_recommendations[:10]
-        )
+        base_recs = build_fstek_recommendations(metrics.get("finding_codes", [])) if fstec_mode else build_general_recommendations(metrics.get("finding_codes", []))
+
+        if fstec_mode:
+            recommendations = base_recs
+        else:
+            merged: List[str] = []
+            for rec in base_recs + llm_recommendations:
+                if rec and rec not in merged:
+                    merged.append(rec)
+            recommendations = merged[:10]
 
         result = {
             "score": llm_score,
