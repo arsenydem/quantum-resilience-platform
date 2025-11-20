@@ -70,6 +70,7 @@ export interface LocalScore {
   topology_bonus?: number;
   control_details: string[];
   findings?: string[];
+  finding_codes?: string[];
 }
 
 export interface AnalysisResult {

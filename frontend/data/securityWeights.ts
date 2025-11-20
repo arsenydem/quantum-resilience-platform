@@ -7,47 +7,88 @@ const normalize = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9а-яё#+]+/g, "");
 
+// Базовые веса для конкретных технологий / продуктов
 const specificNodeWeights: Record<string, number> = {
-  // Wi-Fi
+  // Wi-Fi (по таблице стойкости протоколов)
   wep: 2,
   wpa: 4,
   wpa2personal: 6,
   wpa2enterprise: 8,
   wpa3personal: 9,
   wpa3enterprise: 10,
-  // Disk / data encryption
+
+  // Disk / data encryption (по таблице технологий шифрования носителей)
   bitlocker: 8,
   veracrypt: 9,
   filevault: 8,
   luks: 9,
   vipnet: 10,
   cryptopro: 10,
-  secretdisk: 9,
+  secretdisk: 10,
   ecryptfs: 6,
   apfs: 7,
   ntfs: 5,
   xfsenc: 6,
-  // Endpoint protection
+
+  // Endpoint protection / antivirus / EDR (по таблице антивирусов)
   kaspersky: 9,
-  drweb: 8,
+  drweb: 9,
   eset: 8,
   symantec: 8,
   crowdstrike: 9,
-  defender: 8,
-  mcafee: 7,
-  avast: 6,
-  panda: 6,
-  "360totalsecurity": 6,
+  defender: 8,        // Microsoft Defender for Endpoint
+  mcafee: 8,
+  avast: 7,
+  panda: 7,
+  "360totalsecurity": 7,
   edr: 8,
-  // Auth / MFA
+
+  // Auth / MFA (методы аутентификации)
+  password: 4,
+  "пароль": 4,
+
   pincod: 5,
-  pin: 4,
+  pin: 5,
+  "pinкод": 5,
+
+  "графическийпароль": 4,
+
   otp: 7,
+
   token: 9,
   usbtoken: 9,
+  "usbтокен": 9,
+
   faceid: 8,
+  "распознаваниелица": 8,
+
+  fingerprint: 7,
+  "отпечатокпальца": 7,
+
+  iris: 9,
+  "радужкаглаза": 9,
+
+  smartcard: 8,
+  "смарткарта": 8,
+
   fido2: 9,
+  "ключбезопасностиfido2": 9,
+
+  mobilepass: 6,
+  "мобильныйпропуск": 6,
+
+  palmvein: 9,
+  "биометријавенладони": 9,
+
+  voice: 5,
+  "голосоваяаутентификация": 5,
+
   biometrics: 8,
+
+  mfa: 10,
+  "2fa": 10,
+  "комбинированныеметоды": 10,
+
   // Backup / monitoring
   backup: 6,
   veeam: 9,
@@ -56,6 +97,50 @@ const specificNodeWeights: Record<string, number> = {
   siem: 8,
   soc: 9,
   monitoring: 6,
+
+  // Firewalls (по таблице типов файрволлов)
+  packetfilter: 4,
+  "пакетныйфильтр": 4,
+
+  stateful: 7,
+  "statefulinspection": 7,
+
+  proxyfirewall: 8,
+  "proxyфайрволл": 8,
+
+  ngfw: 9,
+  "nextgenerationfirewall": 9,
+
+  waf: 8,
+
+  personalfirewall: 6,
+  "персональныйфайрволл": 6,
+
+  firewall: 6, // общее слово, чуть ниже NGFW/WAF, но выше пакетного
+};
+
+// Ключевые слова для продуктов, сертифицированных ФСТЭК
+const fstekCertifiedKeywords: Record<string, true> = {
+  // Шифрование дисков
+  vipnet: true,       // ViPNet Client – сертифицирован ФСТЭК
+  secretdisk: true,   // Secret Disk – сертификация ФСТЭК
+
+  // Антивирусы
+  kaspersky: true,    // Kaspersky Endpoint Security – ✅ Да
+  drweb: true,        // Dr.Web Security Space – ✅ Да
+};
+
+// Флаг соответствия ФСТЭК по имени узла
+export const hasFstekCertification = (name: string): boolean => {
+  const normalized = normalize(name);
+  if (!normalized) return false;
+
+  for (const keyword of Object.keys(fstekCertifiedKeywords)) {
+    if (normalized.includes(keyword)) {
+      return true;
+    }
+  }
+  return false;
 };
 
 export type ControlCategoryId =
@@ -64,7 +149,8 @@ export type ControlCategoryId =
   | "endpointProtection"
   | "authFactors"
   | "backupRecovery"
-  | "monitoring";
+  | "monitoring"
+  | "networkFirewall"; // новая категория для файрволлов
 
 export interface ControlCategory {
   id: ControlCategoryId;
@@ -126,13 +212,31 @@ export const CONTROL_CATEGORIES: ControlCategory[] = [
     id: "authFactors",
     label: "Факторы аутентификации и MFA",
     keywords: [
+      "password",
+      "пароль",
       "pin",
+      "pinкод",
       "otp",
       "token",
       "faceid",
       "usb",
+      "usbтокен",
       "fido",
       "biometrics",
+      "графическийпароль",
+      "fingerprint",
+      "отпечатокпальца",
+      "распознаваниелица",
+      "радужкаглаза",
+      "smartcard",
+      "смарткарта",
+      "ключбезопасностиfido2",
+      "мобильныйпропуск",
+      "биометријавенладони",
+      "голосоваяаутентификация",
+      "mfa",
+      "2fa",
+      "комбинированныеметоды",
     ],
     recommendedWeight: 7,
     critical: true,
@@ -148,6 +252,26 @@ export const CONTROL_CATEGORIES: ControlCategory[] = [
     id: "monitoring",
     label: "Мониторинг / SIEM / SOC",
     keywords: ["monitor", "siem", "soc", "xdr", "observ", "securitycenter", "elk"],
+    recommendedWeight: 8,
+    critical: true,
+  },
+  {
+    id: "networkFirewall",
+    label: "Сетевые файрволы и фильтрация трафика",
+    keywords: [
+      "firewall",
+      "packetfilter",
+      "пакетныйфильтр",
+      "statefulinspection",
+      "stateful",
+      "proxyfirewall",
+      "proxyфайрволл",
+      "ngfw",
+      "nextgenerationfirewall",
+      "waf",
+      "personalfirewall",
+      "персональныйфайрволл",
+    ],
     recommendedWeight: 8,
     critical: true,
   },
@@ -211,21 +335,22 @@ export interface CategoryCoverageResult {
 export const evaluateCategoryCoverage = (
   nodes: NetworkNode[],
 ): CategoryCoverageResult[] => {
-  const initial: Record<ControlCategoryId, CategoryCoverageResult> = CONTROL_CATEGORIES.reduce(
-    (acc, category) => {
-      acc[category.id] = {
-        id: category.id,
-        label: category.label,
-        maxWeight: 0,
-        normalized: 0,
-        meetsRecommended: false,
-        critical: Boolean(category.critical),
-        recommendedWeight: category.recommendedWeight,
-      };
-      return acc;
-    },
-    {} as Record<ControlCategoryId, CategoryCoverageResult>,
-  );
+  const initial: Record<ControlCategoryId, CategoryCoverageResult> =
+    CONTROL_CATEGORIES.reduce(
+      (acc, category) => {
+        acc[category.id] = {
+          id: category.id,
+          label: category.label,
+          maxWeight: 0,
+          normalized: 0,
+          meetsRecommended: false,
+          critical: Boolean(category.critical),
+          recommendedWeight: category.recommendedWeight,
+        };
+        return acc;
+      },
+      {} as Record<ControlCategoryId, CategoryCoverageResult>,
+    );
 
   nodes.forEach((node) => {
     const normalizedName = normalize(node.name);

@@ -24,7 +24,7 @@ client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"),
 )
 
-# ----------------- Модели -----------------
+
 class PasswordPolicy(BaseModel):
     min_length: int = 12
     require_upper: bool = True
@@ -65,13 +65,15 @@ class NetworkNode(BaseModel):
     auth_type: str | None = None
     firewall_type: str | None = None
     access_level: int | None = None
-    password_policy: PasswordPolicy | None = None  # legacy поле
+    password_policy: PasswordPolicy | None = None  # legacy field from old UI
 
 
 class ThreatModel(BaseModel):
     quantum_capability: str
     budget_usd: int
     has_error_correction: bool
+    is_fstec_compliant: bool = False
+    has_large_pd_storage: bool = False
 
 
 class AnalysisRequest(BaseModel):
@@ -79,31 +81,48 @@ class AnalysisRequest(BaseModel):
     threat_model: ThreatModel
 
 
-SYSTEM_PROMPT = """Ты эксперт по кибербезопасности. Всегда возвращай ТОЛЬКО валидный JSON без ```json.
-Обязательный формат ответа:
+SYSTEM_PROMPT = """You are a quantum-resilience analyst. Always respond with a VALID JSON object and nothing else. Use this strict schema:
 {
-  "score": 73,
-  "summary": "Короткое описание",
-  "recommendations": ["Не более 10 пунктов"],
+  "score": <0-100>,
+  "summary": "short text",
+  "recommendations": ["no more than 10 short items"],
   "attack_graph": {
-    "nodes": [
-      {"id": "n1", "data": {"label": "Точка долома"}, "type": "vulnerable"},
-      {"id": "n2", "data": {"label": "Угроза"}, "type": "threat"}
-    ],
-    "edges": [
-      {"id": "e1", "source": "n1", "target": "n2", "label": "вектор"}
-    ]
+    "nodes": [{"id": "n1", "data": {"label": "node"}, "type": "vulnerable|threat|control"}],
+    "edges": [{"id": "e1", "source": "n1", "target": "n2", "label": "vector"}]
   }
 }
-JSON не должен содержать дополнительных полей, если ты не уверен в их содержимом."""
+If you cannot fill some field, keep it an empty list/array."""
 
 ENDPOINT_TYPES = {"pc", "user"}
 STRONG_WIFI_PREFIXES = ("wpa2", "wpa3")
-RECOMMENDED_ANTIVIRUS = "QuantumShield EDR"
-RECOMMENDED_ENCRYPTION = "Full-disk AES-256"
-RECOMMENDED_WIFI = {"password": "StrongPass!2025", "encryption": "WPA3-Enterprise"}
-RECOMMENDED_VPN = "ZeroTrust VPN"
-RECOMMENDED_MFA = "FIDO2 token"
+DEFAULT_CONTROLS = {
+    "antivirus": "QuantumShield EDR",
+    "disk_encryption": "Full-disk AES-256",
+    "vpn": "ZeroTrust VPN",
+    "mfa": "FIDO2 token",
+    "wifi_password": "StrongPass!2025",
+    "wifi_encryption": "WPA3-Enterprise",
+    "firewall": "Next-Generation Firewall",
+}
+FSTEK_CONTROLS = {
+    "antivirus": "Kaspersky Endpoint Security",
+    "disk_encryption": "ViPNet Client",
+    "vpn": "ViPNet TLS",
+    "mfa": "Rutoken ECP",
+    "wifi_password": "StrongPass!2025",
+    "wifi_encryption": "WPA3-Enterprise",
+    "firewall": "ViPNet Coordinator NGFW",
+}
+FSTEK_RECOMMENDATION_MAP = {
+    "antivirus_missing": "Разверните Kaspersky Endpoint Security или другой сертифицированный ФСТЭК EDR на конечных узлах.",
+    "disk_missing": "Зашифруйте рабочие станции с помощью ViPNet Client / Secret Disk (ФСТЭК).",
+    "vpn_missing": "Организуйте защищённый канал ViPNet TLS или Континент для удалённого доступа.",
+    "mfa_missing": "Включите ФСТЭК-сертифицированный второй фактор (Rutoken, JaCarta) для администраторов.",
+    "wifi_insecure": "Настройте корпоративный Wi-Fi в режиме WPA3-Enterprise с сертификатами и сложным паролем.",
+    "backup_missing": "Запланируйте ежедневные оффлайн-резервные копии и храните их на доверенной площадке (мониторинг ФСТЭК).",
+    "firewall_unknown": "Замените межсетевой экран на ViPNet Coordinator NGFW или другой продукт с сертификатом ФСТЭК.",
+    "personal_data_unprotected": "Для хранилищ ПДн включите шифрование ViPNet и аппаратные токены доступа.",
+}
 
 
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -148,15 +167,28 @@ def normalize_backup(freq: str | None) -> str:
 
 def ensure_security_policy(node_dict: Dict[str, Any]) -> Dict[str, Any]:
     policy = node_dict.get("security_policy") or {}
-    if "password_hashed" not in policy:
-        policy["password_hashed"] = True
-    if not policy.get("backup_frequency"):
-        policy["backup_frequency"] = "daily"
+    policy["password_hashed"] = True
+    policy["backup_frequency"] = "daily"
     node_dict["security_policy"] = policy
     return node_dict
 
 
-def evaluate_security(nodes: List[NetworkNode]) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Tuple[str, str]]]:
+def apply_ideal_defaults(node_dict: Dict[str, Any], controls: Dict[str, str]) -> Dict[str, Any]:
+    ideal = dict(node_dict)
+    ideal["weight"] = 10.0
+    ideal["security_policy"] = {"password_hashed": True, "backup_frequency": "daily"}
+    ideal["wifi"] = {
+        "password": controls["wifi_password"],
+        "encryption": controls["wifi_encryption"],
+    }
+    return ideal
+
+
+def evaluate_security(
+    nodes: List[NetworkNode],
+    fstec_only: bool = False,
+    pd_sensitive: bool = False,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Tuple[str, str]]]:
     if not nodes:
         metrics = {
             "value": 0,
@@ -164,13 +196,14 @@ def evaluate_security(nodes: List[NetworkNode]) -> Tuple[Dict[str, Any], List[Di
             "connection_ratio": 0.0,
             "control_details": [],
             "findings": [],
+            "finding_codes": [],
         }
         return metrics, [], []
 
     unique_edges = extract_connections(nodes)
     total_nodes = len(nodes)
     max_edges = total_nodes * (total_nodes - 1) // 2
-    connection_ratio = 1.0 if max_edges == 0 else min(1.0, len(unique_edges) / max_edges) if max_edges else 1.0
+    connection_ratio = 1.0 if max_edges == 0 else min(1.0, len(unique_edges) / max_edges)
 
     total_weight = sum((node.weight if node.weight is not None else 5.0) for node in nodes)
     max_weight = max(total_nodes * 10.0, 1.0)
@@ -181,121 +214,133 @@ def evaluate_security(nodes: List[NetworkNode]) -> Tuple[Dict[str, Any], List[Di
 
     control_adjustments = 0.0
     control_details: List[str] = [
-        f"+{base_weight_component:.1f} вклад веса инфраструктуры",
-        f"+{base_connection_component:.1f} вклад плотности связей",
+        f"+{base_weight_component:.1f} from current node weights",
+        f"+{base_connection_component:.1f} from link density",
     ]
-    findings: set[str] = set()
+    finding_texts: set[str] = set()
+    finding_codes: set[str] = set()
     ideal_nodes: List[Dict[str, Any]] = []
+    controls = FSTEK_CONTROLS if fstec_only else DEFAULT_CONTROLS
 
     for node in nodes:
-        ideal = node.model_dump(mode="python")
+        ideal = apply_ideal_defaults(node.model_dump(mode="python"), controls)
         ideal.setdefault("professional_software", node.professional_software or [])
         ideal.setdefault("connections", node.connections or [])
-        ideal.setdefault("encryption", node.encryption or [])
+        ideal.setdefault("encryption", [])
+
         is_endpoint = node.type in ENDPOINT_TYPES
 
         if is_endpoint:
             if node.antivirus:
                 control_adjustments += 8
-                control_details.append(f"+8 {node.name}: установлен антивирус/EDR")
+                control_details.append(f"+8 {node.name}: endpoint protected")
             else:
                 control_adjustments -= 12
-                control_details.append(f"-12 {node.name}: нет антивируса/EDR")
-                findings.add("Установите EDR/антивирус на рабочие станции")
-                ideal["antivirus"] = RECOMMENDED_ANTIVIRUS
+                control_details.append(f"-12 {node.name}: antivirus missing")
+                finding_texts.add("Install certified EDR on endpoints")
+                finding_codes.add("antivirus_missing")
+            ideal["antivirus"] = controls["antivirus"]
 
-            has_disk_encryption = bool(node.encryption)
-            if has_disk_encryption:
+            if node.encryption:
                 control_adjustments += 6
-                control_details.append(f"+6 {node.name}: диск зашифрован")
+                control_details.append(f"+6 {node.name}: disk encryption enabled")
             else:
                 control_adjustments -= 8
-                control_details.append(f"-8 {node.name}: отсутствует шифрование диска")
-                findings.add("Включите шифрование данных на конечных устройствах")
-                ideal["encryption"] = [RECOMMENDED_ENCRYPTION]
+                control_details.append(f"-8 {node.name}: disk encryption missing")
+                finding_texts.add("Enable disk encryption on laptops/workstations")
+                finding_codes.add("disk_missing")
+            ideal["encryption"] = [controls["disk_encryption"]]
 
             if node.vpn:
                 control_adjustments += 4
-                control_details.append(f"+4 {node.name}: трафик идёт через VPN")
+                control_details.append(f"+4 {node.name}: VPN in place")
             else:
                 control_adjustments -= 4
-                control_details.append(f"-4 {node.name}: нет защищённого VPN")
-                findings.add("Используйте VPN/Zero-Trust для удалённых узлов")
-                ideal["vpn"] = RECOMMENDED_VPN
+                control_details.append(f"-4 {node.name}: no VPN for remote access")
+                finding_texts.add("Provide secure VPN/ZeroTrust access")
+                finding_codes.add("vpn_missing")
+            ideal["vpn"] = controls["vpn"]
 
             auth_value = (node.auth_type or "").lower()
             has_mfa = any(keyword in auth_value for keyword in ("token", "fido", "usb", "otp", "face", "bio"))
             if has_mfa:
                 control_adjustments += 6
-                control_details.append(f"+6 {node.name}: настроен MFA")
+                control_details.append(f"+6 {node.name}: MFA enabled")
             else:
                 control_adjustments -= 4
-                control_details.append(f"-4 {node.name}: отсутствует MFA")
-                findings.add("Добавьте MFA/аппаратные токены для критичных пользователей")
-                ideal["auth_type"] = RECOMMENDED_MFA
-        else:
-            has_mfa = False
+                control_details.append(f"-4 {node.name}: MFA missing")
+                finding_texts.add("Add MFA/hardware tokens for operators")
+                finding_codes.add("mfa_missing")
+            ideal["auth_type"] = controls["mfa"]
 
         wifi_secure = is_wifi_secure(node.wifi)
         if node.type == "wifi_ap" or node.wifi:
             if wifi_secure:
                 control_adjustments += 5
-                control_details.append(f"+5 {node.name}: Wi-Fi защищён")
+                control_details.append(f"+5 {node.name}: Wi-Fi hardened")
             else:
                 control_adjustments -= 10
-                control_details.append(f"-10 {node.name}: Wi-Fi небезопасен")
-                findings.add("Переключите Wi-Fi на WPA3 и задайте сложный пароль")
-                ideal["wifi"] = RECOMMENDED_WIFI
+                control_details.append(f"-10 {node.name}: Wi-Fi insecure")
+                finding_texts.add("Switch Wi-Fi to WPA3 with strong password")
+                finding_codes.add("wifi_insecure")
+            ideal["wifi"] = {
+                "password": controls["wifi_password"],
+                "encryption": controls["wifi_encryption"],
+            }
 
         policy = node.security_policy
         if policy and policy.password_hashed:
             control_adjustments += 4
-            control_details.append(f"+4 {node.name}: пароли хэшируются")
+            control_details.append(f"+4 {node.name}: passwords hashed")
         else:
             control_adjustments -= 6
-            control_details.append(f"-6 {node.name}: пароли хранятся в открытом виде")
-            findings.add("Включите хэширование и управление паролями")
-            ideal = ensure_security_policy(ideal)
+            control_details.append(f"-6 {node.name}: passwords stored openly")
+            finding_texts.add("Hash passwords and protect credential store")
+            finding_codes.add("password_plain")
+            ensure_security_policy(ideal)
 
         backup_freq = normalize_backup((policy.backup_frequency if policy else None))
         if backup_freq == "daily":
             control_adjustments += 7
-            control_details.append(f"+7 {node.name}: ежедневные резервные копии")
+            control_details.append(f"+7 {node.name}: daily backups")
         elif backup_freq == "weekly":
             control_adjustments += 5
-            control_details.append(f"+5 {node.name}: еженедельные резервные копии")
+            control_details.append(f"+5 {node.name}: weekly backups")
         elif backup_freq == "monthly":
             control_adjustments += 3
-            control_details.append(f"+3 {node.name}: ежемесячные резервные копии")
+            control_details.append(f"+3 {node.name}: monthly backups")
         else:
             control_adjustments -= 10
-            control_details.append(f"-10 {node.name}: отсутствует стратегия резервного копирования")
-            findings.add("Настройте регулярные резервные копии")
-            ideal = ensure_security_policy(ideal)
+            control_details.append(f"-10 {node.name}: no backup strategy")
+            finding_texts.add("Configure daily offline backups")
+            finding_codes.add("backup_missing")
+            ensure_security_policy(ideal)
 
         if node.type == "firewall":
             if node.firewall_type:
                 control_adjustments += 6
-                control_details.append(f"+6 {node.name}: указан класс межсетевого экрана")
+                control_details.append(f"+6 {node.name}: firewall type defined")
             else:
                 control_adjustments -= 8
-                control_details.append(f"-8 {node.name}: неизвестен тип межсетевого экрана")
-                findings.add("Определите и задокументируйте класс МЭ")
-                ideal["firewall_type"] = "Next-Generation Firewall"
+                control_details.append(f"-8 {node.name}: firewall class unknown")
+                finding_texts.add("Deploy NGFW/WAF with proper certification")
+                finding_codes.add("firewall_unknown")
+            ideal["firewall_type"] = controls["firewall"]
 
         if node.personal_data and node.personal_data.enabled:
-            if node.encryption or wifi_secure or has_mfa:
+            if node.encryption or wifi_secure or (policy and policy.password_hashed):
                 control_adjustments += 3
-                control_details.append(f"+3 {node.name}: данные клиентов защищены")
+                control_details.append(f"+3 {node.name}: personal data protected")
             else:
                 control_adjustments -= 12
-                control_details.append(f"-12 {node.name}: персональные данные без защиты")
-                findings.add("Зашифруйте и ограничьте доступ к персональным данным")
-                ideal["encryption"] = ideal.get("encryption") or [RECOMMENDED_ENCRYPTION]
-                ideal["auth_type"] = ideal.get("auth_type") or RECOMMENDED_MFA
+                control_details.append(f"-12 {node.name}: personal data exposed")
+                finding_texts.add("Encrypt and limit access to personal data")
+                finding_codes.add("personal_data_unprotected")
+                ideal["encryption"] = [controls["disk_encryption"]]
+                ideal["auth_type"] = controls["mfa"]
+        elif pd_sensitive:
+            control_details.append("+0 system processes PD separately, ensure safeguards")
 
-        current_weight = node.weight if node.weight is not None else 5.0
-        ideal["weight"] = min(10.0, current_weight + 2.0)
         ideal_nodes.append(ideal)
 
     topology_bonus = 0.0
@@ -306,28 +351,46 @@ def evaluate_security(nodes: List[NetworkNode]) -> Tuple[Dict[str, Any], List[Di
             topology_bonus = -5.0
     if topology_bonus:
         control_adjustments += topology_bonus
-        control_details.append(f"{topology_bonus:+} за топологию сети")
+        control_details.append(f"{topology_bonus:+} network topology factor")
 
     total_score = clamp(base_weight_component + base_connection_component + control_adjustments)
+
     metrics = {
         "value": round(total_score),
         "weight_ratio": round(weight_ratio, 2),
         "connection_ratio": round(connection_ratio, 2),
         "control_details": control_details,
         "topology_bonus": topology_bonus,
-        "findings": sorted(findings),
+        "findings": sorted(finding_texts),
+        "finding_codes": sorted(finding_codes),
     }
     return metrics, ideal_nodes, unique_edges
 
 
+def build_fstek_recommendations(finding_codes: List[str]) -> List[str]:
+    recs = []
+    for code in finding_codes:
+        text = FSTEK_RECOMMENDATION_MAP.get(code)
+        if text:
+            recs.append(text)
+    if not recs:
+        recs.append("Сохраняйте актуальные сертификаты ФСТЭК и подтверждайте соответствие ежегодно.")
+    return recs[:10]
+
+
 @app.post("/api/analyze")
 async def analyze(request: AnalysisRequest):
-    metrics, ideal_nodes, connection_pairs = evaluate_security(request.nodes)
-    nodes_desc = []
-    for node in request.nodes:
-        nodes_desc.append(
-            f"- {node.name} ({node.type}), вес={node.weight or 'n/a'}, AV={'да' if node.antivirus else 'нет'}, VPN={'да' if node.vpn else 'нет'}, связей={len(node.connections)}"
-        )
+    fstec_mode = request.threat_model.is_fstec_compliant
+    metrics, ideal_nodes, connection_pairs = evaluate_security(
+        request.nodes,
+        fstec_only=fstec_mode,
+        pd_sensitive=request.threat_model.has_large_pd_storage,
+    )
+
+    nodes_desc = [
+        f"- {node.name} ({node.type}): weight={node.weight or 'n/a'}, AV={'yes' if node.antivirus else 'no'}, VPN={'yes' if node.vpn else 'no'}, links={len(node.connections or [])}"
+        for node in request.nodes
+    ]
 
     payload = {
         "local_score": metrics,
@@ -335,16 +398,18 @@ async def analyze(request: AnalysisRequest):
         "ideal_nodes": ideal_nodes,
         "connections": [{"source": a, "target": b} for a, b in connection_pairs],
         "threat_model": request.threat_model.model_dump(),
+        "fstec_mode": fstec_mode,
     }
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
 
-    user_prompt = f"""Текущая инфраструктура (кратко):
+    extra_clause = "Все рекомендации должны соответствовать требованиям ФСТЭК." if fstec_mode else ""
+
+    user_prompt = f"""Текущая инфраструктура:
 {chr(10).join(nodes_desc) if nodes_desc else 'узлы отсутствуют'}
 
-Локальная модель оценила устойчивость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме из системного промпта. Ниже полный набор данных:
-```json
-{payload_json}
-```"""
+Локальная модель оценила стойкость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме. {extra_clause}
+Ниже подробные данные:
+""" + "`json\n" + payload_json + "\n`"
 
     try:
         response = client.chat.completions.create(
@@ -358,7 +423,7 @@ async def analyze(request: AnalysisRequest):
         )
 
         raw = response.choices[0].message.content.strip()
-        print("\n=== RAW ОТВЕТ LLM ===\n", raw, "\n======================\n")
+        print("\n=== RAW LLM RESPONSE ===\n", raw, "\n======================\n")
 
         json_match = re.search(r"\{.*\}", raw, re.DOTALL)
         if not json_match:
@@ -366,17 +431,23 @@ async def analyze(request: AnalysisRequest):
 
         data = json.loads(json_match.group(0))
 
-        score = int(data.get("score", metrics["value"]))
+        llm_score = int(data.get("score", metrics["value"]))
         summary = str(data.get("summary", "Описание отсутствует"))
-        recommendations = data.get("recommendations", [])
-        if not isinstance(recommendations, list):
-            recommendations = [str(recommendations)]
+        llm_recommendations = data.get("recommendations", [])
+        if not isinstance(llm_recommendations, list):
+            llm_recommendations = [str(llm_recommendations)]
         attack_graph = data.get("attack_graph", {"nodes": [], "edges": []})
 
+        recommendations = (
+            build_fstek_recommendations(metrics.get("finding_codes", []))
+            if fstec_mode
+            else llm_recommendations[:10]
+        )
+
         result = {
-            "score": score,
+            "score": llm_score,
             "summary": summary,
-            "recommendations": recommendations[:10],
+            "recommendations": recommendations,
             "attack_graph": attack_graph,
             "local_score": metrics,
             "ideal_nodes": ideal_nodes,
@@ -388,10 +459,10 @@ async def analyze(request: AnalysisRequest):
         return result
 
     except Exception as e:
-        print("ОШИБКА:", str(e))
-        raise HTTPException(status_code=500, detail=f"LLM упрямится: {str(e)}")
+        print("ERROR:", str(e))
+        raise HTTPException(status_code=500, detail=f"LLM failed: {str(e)}")
 
 
 @app.get("/")
 def root():
-    return {"status": "ok", "message": "Quantum Resilience API работает"}
+    return {"status": "ok", "message": "Quantum Resilience API"}
