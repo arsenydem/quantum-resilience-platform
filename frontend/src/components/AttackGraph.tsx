@@ -226,7 +226,6 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
       );
     }
 
-    // personal_data может быть undefined → нормализуем
     const pd = asset.personal_data ?? { enabled: false, count: 0 };
 
     const personalDataLabel = pd.enabled

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { AlertTriangle, DollarSign, Cpu } from "lucide-react";
+import { AlertTriangle, Cpu } from "lucide-react";
 import { ThreatModel } from "../types";
 
 const capabilities = [
-  { value: "UsualAttack", label: "Обычная атака" },
-  { value: "QuantumAttack", label: "Атака с использованием квантовых ПК" },
+  { value: "UsualAttack", label: "Атака с использованием классических методов" },
+  { value: "QuantumAttack", label: "Атака с использованием квантовых устройств" },
 ];
 
 export default function ThreatModelForm({
@@ -16,9 +16,11 @@ export default function ThreatModelForm({
 }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<ThreatModel>({
-    quantum_capability: "CRQC 2035+",
+    quantum_capability: "QuantumAttack",     // чтобы совпадало с одним из value
     budget_usd: 1_000_000_000,
     has_error_correction: true,
+    is_fstec_compliant: false,
+    has_large_pd_storage: false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,7 +41,7 @@ export default function ThreatModelForm({
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
             <Cpu className="w-6 h-6" />
-            Возможности квантового компьютера
+            Тип атаки
           </h3>
           <div className="space-y-4">
             {capabilities.map(c => (
@@ -49,42 +51,55 @@ export default function ThreatModelForm({
                   name="capability"
                   value={c.value}
                   checked={form.quantum_capability === c.value}
-                  onChange={e => setForm({ ...form, quantum_capability: e.target.value })}
+                  onChange={e =>
+                    setForm(prev => ({ ...prev, quantum_capability: e.target.value }))
+                  }
                   className="mt-1 w-5 h-5 text-red-600"
                 />
                 <div>
                   <div className="font-medium">{c.label}</div>
                   <div className="text-sm text-gray-600">
-                    {c.value.includes("2030") && "Шор: ~2000 лог. кубитов, Гровер: ~10⁶"}
-                    {c.value.includes("2035") && "Шор: >10⁴ лог. кубитов, Гровер: >10⁸, полная коррекция"}
-                    {c.value.includes("2040") && "Неограниченные ресурсы"}
+                    {c.value === "UsualAttack" &&
+                      "Классический атакующий без применения квантовых алгоритмов"}
+                    {c.value === "QuantumAttack" &&
+                      "Нарушитель с доступом к квантовому ускорителю (Шор/Гровер)"}
                   </div>
                 </div>
               </label>
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <input
-            type="checkbox"
-            id="standart"
-            checked={form.has_error_correction}
-            onChange={e => setForm({ ...form, has_error_correction: e.target.checked })}
-            className="w-6 h-6 text-red-600"
-          />
-          <label htmlFor="standart" className="text-lg">
-            Соответствие стандартам ФСТЕК
-          </label>
-          <input
-            type="checkbox"
-            id="data_storage"
-            checked={form.has_error_correction}
-            onChange={e => setForm({ ...form, has_error_correction: e.target.checked })}
-            className="w-6 h-6 text-red-600"
-          />
-          <label htmlFor="data_storage" className="text-lg">
-            Хранится более 100 тысяч записей субъектов персональных данных
-          </label>
+
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="fstec"
+              checked={form.is_fstec_compliant}
+              onChange={e =>
+                setForm(prev => ({ ...prev, is_fstec_compliant: e.target.checked }))
+              }
+              className="w-6 h-6 text-red-600"
+            />
+            <label htmlFor="fstec" className="text-lg">
+              Соответствие стандартам ФСТЭК
+            </label>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="data_storage"
+              checked={form.has_large_pd_storage}
+              onChange={e =>
+                setForm(prev => ({ ...prev, has_large_pd_storage: e.target.checked }))
+              }
+              className="w-6 h-6 text-red-600"
+            />
+            <label htmlFor="data_storage" className="text-lg">
+              Хранится более 100 тысяч записей субъектов персональных данных
+            </label>
+          </div>
         </div>
 
         <div className="flex justify-between pt-8">

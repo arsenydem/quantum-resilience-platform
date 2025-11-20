@@ -54,6 +54,8 @@ export interface ThreatModel {
   quantum_capability: string;
   budget_usd: number;
   has_error_correction: boolean;
+  is_fstec_compliant: boolean;
+  has_large_pd_storage: boolean;
 }
 
 export interface AttackGraphData {
