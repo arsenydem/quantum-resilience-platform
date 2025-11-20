@@ -11,7 +11,7 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: "router", label: "Маршрутизатор" },
   { value: "firewall", label: "Файрволл" },
   { value: "wifi_ap", label: "Точка доступа Wi-Fi" },
-  { value: "user", label: "Пользователь" }, // 👈 новый тип
+  { value: "user", label: "Пользователь" },
 ];
 
 const MOCK_NODES: Omit<NetworkNode, "id">[] = [
@@ -29,10 +29,6 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
     security_policy: {
       password_hashed: true,
       backup_frequency: "daily",
-    },
-    personal_data: {
-      enabled: true,
-      count: 2400,
     },
     professional_software: ["Visual Studio", "Docker Desktop", "Terraform"],
     auth_type: "Пароль",
@@ -60,10 +56,6 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
       password_hashed: true,
       backup_frequency: "daily",
     },
-    personal_data: {
-      enabled: true,
-      count: 520,
-    },
     professional_software: ["1C", "SAP GUI", "MS Office"],
     auth_type: "Смарт-карта",
   },
@@ -79,10 +71,6 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
     security_policy: {
       password_hashed: false,
       backup_frequency: "none",
-    },
-    personal_data: {
-      enabled: false,
-      count: 0,
     },
     professional_software: [],
   },
@@ -196,7 +184,7 @@ export default function PlatformForm({
     const form = e.currentTarget;
     const data = new FormData(form);
 
-    const encryption = data.getAll("encryption") as string[];
+    const encryptionValue = (data.get("encryption") as string) || "";
 
     const security_policy = {
       password_hashed: data.get("password_hashed") === "on",
@@ -212,11 +200,6 @@ export default function PlatformForm({
           }
         : undefined;
 
-    const personal_data = {
-      enabled: data.get("personal_data") === "on",
-      count: Number(data.get("personal_data_count") || 0) || 0,
-    };
-
     const connections = data.getAll("connections") as string[];
 
     const accessLevelValue = data.get("access_level") as string | null;
@@ -231,20 +214,17 @@ export default function PlatformForm({
         .filter(Boolean),
       os: (data.get("os") as string) || undefined,
       antivirus: (data.get("antivirus") as string) || undefined,
-      encryption: encryption.length ? encryption : undefined,
-      vpn: ((data.get("vpn") as string) || "").trim() || undefined,
-      // 1f. Тип аутентификации
+      encryption: encryptionValue ? [encryptionValue] : undefined,
+      // VPN как галочка: если включено — пишем "enabled", иначе undefined
+      vpn: data.get("vpn") === "on" ? "enabled" : undefined,
       auth_type: ((data.get("auth_type") as string) || "").trim() || undefined,
-      // 6. Тип файрволла
       firewall_type:
         ((data.get("firewall_type") as string) || "").trim() || undefined,
-      // 8. Уровень доступа пользователя
       access_level: accessLevelValue
         ? (Number(accessLevelValue) as 1 | 2 | 3)
         : undefined,
       security_policy,
       wifi,
-      personal_data,
       connections,
     };
 
@@ -431,39 +411,38 @@ export default function PlatformForm({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-2">
+                    <label className="block text-sm font-medium">
                       Средства шифрования
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <select
+                      name="encryption"
+                      className="w-full mt-1 p-3 border rounded-lg"
+                      defaultValue={
+                        Array.isArray((editing as any)?.encryption) &&
+                        (editing as any)?.encryption.length > 0
+                          ? (editing as any).encryption[0]
+                          : ""
+                      }
+                    >
+                      <option value="">Не используется / другое</option>
                       {encryptionOptions.map((enc) => (
-                        <label
-                          key={enc}
-                          className="flex items-center gap-2 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            name="encryption"
-                            value={enc}
-                            className="w-4 h-4"
-                            defaultChecked={
-                              (editing as any)?.encryption?.includes?.(enc)
-                            }
-                          />
-                          <span>{enc}</span>
-                        </label>
+                        <option key={enc} value={enc}>
+                          {enc}
+                        </option>
                       ))}
-                    </div>
+                    </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium">VPN</label>
+                  {/* VPN только галочкой */}
+                  <label className="flex items-center gap-3 text-sm">
                     <input
+                      type="checkbox"
                       name="vpn"
-                      defaultValue={(editing as any)?.vpn}
-                      placeholder="Например: OpenVPN, Cisco AnyConnect..."
-                      className="w-full mt-1 p-3 border rounded-lg"
+                      className="w-4 h-4"
+                      defaultChecked={Boolean((editing as any)?.vpn)}
                     />
-                  </div>
+                    <span>Используется корпоративный VPN</span>
+                  </label>
 
                   {/* 1f. Тип аутентификации */}
                   <div>
@@ -514,7 +493,7 @@ export default function PlatformForm({
 
               {/* 7. Точка доступа Wi-Fi */}
               {currentType === "wifi_ap" && (
-                <div className="space-y-4 border-t pt-4">
+                <div className="space-y-4 border-т pt-4">
                   <h4 className="font-semibold text-lg">
                     Параметры Wi-Fi точки доступа
                   </h4>
@@ -577,7 +556,7 @@ export default function PlatformForm({
                 </div>
               )}
 
-              {/* 5. Политика безопасности + персональные данные */}
+              {/* 5. Политика безопасности */}
               <div className="border-t pt-4 space-y-4">
                 <h4 className="font-semibold text-lg">Политика безопасности</h4>
 
@@ -610,34 +589,6 @@ export default function PlatformForm({
                     <option value="weekly">Еженедельно</option>
                     <option value="monthly">Ежемесячно</option>
                   </select>
-                </div>
-
-                {/* Хранение персональных данных */}
-                <div className="pt-2 border-t mt-2 space-y-2">
-                  <h5 className="font-semibold text-sm">
-                    Хранение персональных данных
-                  </h5>
-                  <label className="flex items-center gap-3 text-sm">
-                    <input
-                      type="checkbox"
-                      name="personal_data"
-                      className="w-4 h-4"
-                      defaultChecked={editing?.personal_data?.enabled}
-                    />
-                    <span>На узле обрабатываются / хранятся персональные данные</span>
-                  </label>
-                  <div>
-                    <label className="block text-sm font-medium">
-                      Оценочное количество записей
-                    </label>
-                    <input
-                      type="number"
-                      name="personal_data_count"
-                      min={0}
-                      className="w-full mt-1 p-3 border rounded-lg"
-                      defaultValue={editing?.personal_data?.count ?? 0}
-                    />
-                  </div>
                 </div>
               </div>
 
