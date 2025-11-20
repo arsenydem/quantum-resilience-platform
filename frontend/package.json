@@ -7,9 +7,11 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "cytoscape": "^3.33.1",
         "dagre": "^0.8.5",
         "lucide-react": "^0.453.0",
         "react": "^18.3.1",
+        "react-cytoscapejs": "^2.0.0",
         "react-dom": "^18.3.1",
         "react-flow-renderer": "^10.3.17",
         "react-hook-form": "^7.51.0",

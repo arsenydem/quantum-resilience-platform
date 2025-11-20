@@ -1,4 +1,4 @@
-п»їimport { useMemo } from "react";
+import { useMemo } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
 import type cytoscape from "cytoscape";
 import type { AnalysisResult, NetworkNode } from "../types";
@@ -47,10 +47,10 @@ const backupWeights: Record<string, number> = {
 };
 
 const backupLabels: Record<string, string> = {
-  none: "none",
-  daily: "daily",
-  weekly: "weekly",
-  monthly: "monthly",
+  none: "нет",
+  daily: "ежедневно",
+  weekly: "еженедельно",
+  monthly: "ежемесячно",
 };
 
 const cytoscapeStylesheet: cytoscape.Stylesheet[] = [
@@ -69,15 +69,41 @@ const cytoscapeStylesheet: cytoscape.Stylesheet[] = [
       "font-size": 12,
       "font-weight": 600,
       "text-wrap": "wrap",
-      "text-max-width": 220,
+      "text-max-width": 200,
       "text-valign": "center",
       "text-halign": "center",
     },
   },
-  { selector: ".node-asset", style: { "background-color": "#c7d2fe", "border-color": "#818cf8", "font-size": 13 } },
-  { selector: ".node-control", style: { "background-color": "#d1fae5", "border-color": "#34d399" } },
-  { selector: ".node-info", style: { "background-color": "#e2e8f0", "border-color": "#94a3b8" } },
-  { selector: ".node-risk", style: { "background-color": "#fee2e2", "border-color": "#fca5a5", color: "#b91c1c" } },
+  {
+    selector: ".node-asset",
+    style: {
+      "background-color": "#c7d2fe",
+      "border-color": "#818cf8",
+      "font-size": 13,
+    },
+  },
+  {
+    selector: ".node-control",
+    style: {
+      "background-color": "#d1fae5",
+      "border-color": "#34d399",
+    },
+  },
+  {
+    selector: ".node-info",
+    style: {
+      "background-color": "#e2e8f0",
+      "border-color": "#94a3b8",
+    },
+  },
+  {
+    selector: ".node-risk",
+    style: {
+      "background-color": "#fee2e2",
+      "border-color": "#fca5a5",
+      color: "#b91c1c",
+    },
+  },
   {
     selector: "edge",
     style: {
@@ -95,9 +121,28 @@ const cytoscapeStylesheet: cytoscape.Stylesheet[] = [
       "text-background-shape": "round-rectangle",
     },
   },
-  { selector: ".edge-control", style: { "line-color": edgeColors.control, "target-arrow-color": edgeColors.control } },
-  { selector: ".edge-info", style: { "line-color": edgeColors.info, "target-arrow-color": edgeColors.info } },
-  { selector: ".edge-risk", style: { "line-color": edgeColors.risk, "target-arrow-color": edgeColors.risk, "line-style": "dashed" } },
+  {
+    selector: ".edge-control",
+    style: {
+      "line-color": edgeColors.control,
+      "target-arrow-color": edgeColors.control,
+    },
+  },
+  {
+    selector: ".edge-info",
+    style: {
+      "line-color": edgeColors.info,
+      "target-arrow-color": edgeColors.info,
+    },
+  },
+  {
+    selector: ".edge-risk",
+    style: {
+      "line-color": edgeColors.risk,
+      "target-arrow-color": edgeColors.risk,
+      "line-style": "dashed",
+    },
+  },
 ];
 
 const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
@@ -115,32 +160,32 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
 
     nodes.push({
       id: assetId,
-      title: asset.name || `Node ${index + 1}`,
+      title: asset.name || `Узел ${index + 1}`,
       subtitle: asset.type,
       weight: assetWeight,
       variant: "asset",
     });
 
     if (asset.security_policy) {
-      const backupLabel = backupLabels[asset.security_policy.backup_frequency || "none"];
-      const backupWeight = backupWeights[asset.security_policy.backup_frequency || "none"];
-      const policyNodeId = `${assetId}-policy`;
-      nodes.push({
-        id: policyNodeId,
-        title: asset.security_policy.password_hashed ? "Passwords hashed" : "Passwords plain",
-        subtitle: `Backup: ${backupLabel}`,
-        weight: backupWeight,
+      edges.push({
+        id: `policy-${assetId}`,
+        source: assetId,
+        target: `${assetId}-policy`,
+        label: asset.security_policy.password_hashed ? "Пароли: хеш" : "Пароли: plain",
         variant: asset.security_policy.password_hashed ? "control" : "risk",
       });
-      edges.push({
-        id: `${assetId}-policy-edge`,
-        source: assetId,
-        target: policyNodeId,
-        label: "policy",
+      nodes.push({
+        id: `${assetId}-policy`,
+        title: asset.security_policy.password_hashed ? "Пароли хэшируются" : "Пароли хранятся открыто",
+        subtitle: `Бэкап: ${backupLabels[asset.security_policy.backup_frequency || "none"]}`,
+        weight: backupWeights[asset.security_policy.backup_frequency || "none"],
         variant: asset.security_policy.password_hashed ? "control" : "risk",
       });
       hasEdges = true;
     }
+
+    const pwdFragment = asset.password_policy ? `Пароль ?${asset.password_policy.min_length}` : undefined;
+    const soft = asset.professional_software?.length ? asset.professional_software.join(", ") : undefined;
 
     const addDescriptor = (
       title: string,
@@ -149,54 +194,74 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
       customId?: string,
     ) => {
       const descriptorId = customId || `${assetId}-feature-${counter++}`;
-      nodes.push({ id: descriptorId, title, subtitle, variant });
+      nodes.push({
+        id: descriptorId,
+        title,
+        subtitle,
+        variant,
+      });
       edges.push({
         id: `${assetId}-${descriptorId}`,
         source: assetId,
         target: descriptorId,
-        label: variant === "risk" ? "gap" : "detail",
         variant: variant === "risk" ? "risk" : "info",
       });
       hasEdges = true;
     };
 
-    if (asset.os) addDescriptor("OS", asset.os, "info");
-    if (asset.antivirus) addDescriptor("Antivirus", asset.antivirus, "control");
-    if (asset.encryption?.length) addDescriptor("Encryption", asset.encryption.join(", "), "control");
-    if (asset.vpn) addDescriptor("VPN", asset.vpn, "control");
+    if (asset.os) {
+      addDescriptor("ОС", asset.os, "info");
+    }
+    if (asset.antivirus) {
+      addDescriptor("Антивирус", asset.antivirus, "control");
+    }
+    if (asset.encryption?.length) {
+      addDescriptor("Шифрование", asset.encryption.join(", "), "control");
+    }
+    if (asset.vpn) {
+      addDescriptor("VPN", asset.vpn, "control");
+    }
     if (asset.wifi) {
-      const secure = asset.wifi.password && asset.wifi.encryption;
+      const wifiSecure = asset.wifi.password && asset.wifi.encryption;
       addDescriptor(
         "Wi-Fi",
-        `${asset.wifi.encryption || ""} ${asset.wifi.password ? "(password set)" : "(open)"}`.trim(),
-        secure ? "control" : "risk",
+        `${asset.wifi.encryption || ""} ${asset.wifi.password ? "(пароль задан)" : "(без пароля)"}`.trim(),
+        wifiSecure ? "control" : "risk",
       );
     }
-    if (asset.professional_software?.length) {
-      addDescriptor("Software", asset.professional_software.join(", "), "info");
+    if (pwdFragment) {
+      addDescriptor("Пароли", pwdFragment, "info");
+    }
+    if (soft) {
+      addDescriptor("ПО", soft, "info");
     }
     if (asset.personal_data?.enabled) {
       addDescriptor(
-        "Personal data",
-        `~${asset.personal_data.count || "?"} entries`,
+        "ПД",
+        `~${asset.personal_data.count || "?"} записей",
         asset.encryption?.length ? "control" : "risk",
       );
     }
   });
 
   platformNodes.forEach((asset) => {
-    if (!asset.connections?.length) return;
+    if (!asset.connections?.length) {
+      return;
+    }
     const sourceId = assetIdMap.get(asset.id || "");
-    if (!sourceId) return;
+    if (!sourceId) {
+      return;
+    }
     asset.connections.forEach((targetId) => {
       const mappedTarget = assetIdMap.get(targetId);
-      if (!mappedTarget) return;
-      const connectionId = `link-${sourceId}-${mappedTarget}`;
+      if (!mappedTarget) {
+        return;
+      }
       edges.push({
-        id: connectionId,
+        id: `link-${sourceId}-${mappedTarget}`,
         source: sourceId,
         target: mappedTarget,
-        label: "link",
+        label: "Связь",
         variant: "info",
       });
       hasEdges = true;
@@ -232,10 +297,17 @@ const toCytoscapeElements = (
 ): cytoscape.ElementDefinition[] => {
   const elements: cytoscape.ElementDefinition[] = graph.nodes.map((descriptor) => {
     const labelParts = [descriptor.title];
-    if (descriptor.subtitle) labelParts.push(descriptor.subtitle);
-    if (typeof descriptor.weight === "number") labelParts.push(`w=${descriptor.weight}`);
+    if (descriptor.subtitle) {
+      labelParts.push(descriptor.subtitle);
+    }
+    if (typeof descriptor.weight === "number") {
+      labelParts.push(`w=${descriptor.weight}`);
+    }
     return {
-      data: { id: descriptor.id, label: labelParts.join("\n") },
+      data: {
+        id: descriptor.id,
+        label: labelParts.join("\n"),
+      },
       classes: `node-${descriptor.variant}`,
     };
   });
@@ -256,19 +328,27 @@ const toCytoscapeElements = (
 };
 
 export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
-  const securityGraph = useMemo(() => buildSecurityGraph(platformNodes), [platformNodes]);
-  const fallback = useMemo(() => buildFallbackGraph(fallbackGraph), [fallbackGraph]);
+  const securityGraph = useMemo(
+    () => buildSecurityGraph(platformNodes),
+    [platformNodes],
+  );
+
+  const fallback = useMemo(
+    () => buildFallbackGraph(fallbackGraph),
+    [fallbackGraph],
+  );
+
   const graphToRender = platformNodes.length ? securityGraph : fallback;
   const elements = useMemo(() => toCytoscapeElements(graphToRender), [graphToRender]);
   const layout = useMemo(
-    () => ({ name: "cose", animate: false, padding: 60, nodeDimensionsIncludeLabels: true }),
+    () => ({ name: "cose", animate: false, padding: 50, nodeDimensionsIncludeLabels: true }),
     [graphToRender.nodes.length, graphToRender.edges.length],
   );
 
   if (graphToRender.nodes.length === 0) {
     return (
       <div className="p-6 border rounded-xl bg-slate-50 text-sm text-slate-500">
-        No data to render a graph yet. Please add at least one node.
+        Нет данных для построения графа. Добавьте хотя бы один узел инфраструктуры.
       </div>
     );
   }
@@ -288,12 +368,12 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
       </div>
       {missingEdges && (
         <p className="mt-3 text-sm text-amber-600">
-          Not enough fields were filled in to build connections. Add, for example, antivirus, encryption or WiвЂ‘Fi settings.
+          Недостаточно введённых полей, чтобы отрисовать связи. Добавьте, например, антивирус, шифрование или настройки Wi?Fi.
         </p>
       )}
       {!platformNodes.length && fallbackGraph && (
         <p className="mt-3 text-xs text-slate-500">
-          Showing the graph returned by LLM. Fill in your nodes to see the actual topology.
+          Показан граф из ответа LLM. Введите данные на предыдущих шагах, чтобы увидеть собственную топологию.
         </p>
       )}
     </div>
