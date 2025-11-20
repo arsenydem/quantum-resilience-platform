@@ -1,6 +1,14 @@
-﻿import type { NodeType } from "../types";
+import type { NodeType } from "../types";
 
 export type CommunicationLevel = "physical" | "linguistic" | "semantic";
+
+export const COMMUNICATION_LEVELS: CommunicationLevel[] = ["physical", "linguistic", "semantic"];
+
+export const COMMUNICATION_LEVEL_WEIGHTS: Record<CommunicationLevel, number> = {
+  physical: 6,
+  linguistic: 7,
+  semantic: 8,
+};
 
 export interface InnerNode {
   id: string;
@@ -16,6 +24,23 @@ export interface InnerEdge {
   level: CommunicationLevel;
   weight?: number;
 }
+
+interface InnerRelation {
+  source: string;
+  target: string;
+}
+
+const expandRelations = (relations: InnerRelation[]): InnerEdge[] => {
+  return relations.flatMap((relation) =>
+    COMMUNICATION_LEVELS.map((level) => ({
+      id: relation.source + "-" + relation.target + "-" + level,
+      source: relation.source,
+      target: relation.target,
+      level,
+      weight: COMMUNICATION_LEVEL_WEIGHTS[level],
+    })),
+  );
+};
 
 export interface InnerGraphTemplate {
   title: string;
@@ -41,28 +66,23 @@ const pcTemplate: InnerGraphTemplate = {
     { id: "headphones", label: "Headphones", variant: "info", weight: 5 },
     { id: "wifi", label: "Wi-Fi adapter", variant: "control", weight: 7 },
   ],
-  edges: [
-    { id: "cpu-gpu-phys", source: "cpu", target: "gpu", level: "physical" },
-    { id: "cpu-gpu-ling", source: "cpu", target: "gpu", level: "linguistic" },
-    { id: "cpu-gpu-sem", source: "cpu", target: "gpu", level: "semantic" },
-    { id: "cpu-ram-phys", source: "cpu", target: "ram", level: "physical" },
-    { id: "cpu-ram-ling", source: "cpu", target: "ram", level: "linguistic" },
-    { id: "cpu-mb-phys", source: "cpu", target: "mb", level: "physical" },
-    { id: "gpu-mb-phys", source: "gpu", target: "mb", level: "physical" },
-    { id: "ram-mb-phys", source: "ram", target: "mb", level: "physical" },
-    { id: "ssd-mb-phys", source: "ssd", target: "mb", level: "physical" },
-    { id: "hdd-mb-phys", source: "hdd", target: "mb", level: "physical" },
-    { id: "keyboard-mb-phys", source: "keyboard", target: "mb", level: "physical" },
-    { id: "mouse-mb-phys", source: "mouse", target: "mb", level: "physical" },
-    { id: "webcam-mb-phys", source: "webcam", target: "mb", level: "physical" },
-    { id: "mic-mb-phys", source: "mic", target: "mb", level: "physical" },
-    { id: "monitor-gpu-physical", source: "monitor", target: "gpu", level: "physical" },
-    { id: "speakers-mb-phys", source: "speakers", target: "mb", level: "physical" },
-    { id: "headphones-mb-phys", source: "headphones", target: "mb", level: "physical" },
-    { id: "wifi-mb-phys", source: "wifi", target: "mb", level: "physical" },
-    { id: "wifi-mb-ling", source: "wifi", target: "mb", level: "linguistic" },
-    { id: "wifi-mb-sem", source: "wifi", target: "mb", level: "semantic" },
-  ],
+  edges: expandRelations([
+    { source: "cpu", target: "gpu" },
+    { source: "cpu", target: "ram" },
+    { source: "cpu", target: "mb" },
+    { source: "gpu", target: "mb" },
+    { source: "ram", target: "mb" },
+    { source: "ssd", target: "mb" },
+    { source: "hdd", target: "mb" },
+    { source: "keyboard", target: "mb" },
+    { source: "mouse", target: "mb" },
+    { source: "webcam", target: "mb" },
+    { source: "mic", target: "mb" },
+    { source: "monitor", target: "gpu" },
+    { source: "speakers", target: "mb" },
+    { source: "headphones", target: "mb" },
+    { source: "wifi", target: "mb" },
+  ]),
 };
 
 const routerTemplate: InnerGraphTemplate = {
@@ -76,16 +96,14 @@ const routerTemplate: InnerGraphTemplate = {
     { id: "lan", label: "LAN switch", variant: "control", weight: 8 },
     { id: "wifi", label: "Wi-Fi radio", variant: "info", weight: 7 },
   ],
-  edges: [
-    { id: "cpu-asic-phys", source: "cpu", target: "asic", level: "physical" },
-    { id: "cpu-asic-ling", source: "cpu", target: "asic", level: "linguistic" },
-    { id: "cpu-ram-phys", source: "cpu", target: "ram", level: "physical" },
-    { id: "cpu-firmware-sem", source: "cpu", target: "firmware", level: "semantic" },
-    { id: "cpu-wan-ling", source: "cpu", target: "wan", level: "linguistic" },
-    { id: "cpu-lan-ling", source: "cpu", target: "lan", level: "linguistic" },
-    { id: "lan-wifi-physical", source: "lan", target: "wifi", level: "physical" },
-    { id: "lan-wifi-ling", source: "lan", target: "wifi", level: "linguistic" },
-  ],
+  edges: expandRelations([
+    { source: "cpu", target: "asic" },
+    { source: "cpu", target: "ram" },
+    { source: "cpu", target: "firmware" },
+    { source: "cpu", target: "wan" },
+    { source: "cpu", target: "lan" },
+    { source: "lan", target: "wifi" },
+  ]),
 };
 
 const wifiTemplate: InnerGraphTemplate = {
@@ -97,14 +115,12 @@ const wifiTemplate: InnerGraphTemplate = {
     { id: "lan", label: "Uplink", variant: "control", weight: 7 },
     { id: "firmware", label: "Firmware", variant: "info", weight: 6 },
   ],
-  edges: [
-    { id: "radio-antenna-phys", source: "radio", target: "antenna", level: "physical" },
-    { id: "radio-cpu-phys", source: "radio", target: "cpu", level: "physical" },
-    { id: "radio-cpu-ling", source: "radio", target: "cpu", level: "linguistic" },
-    { id: "cpu-lan-phys", source: "cpu", target: "lan", level: "physical" },
-    { id: "cpu-lan-ling", source: "cpu", target: "lan", level: "linguistic" },
-    { id: "cpu-firmware-sem", source: "cpu", target: "firmware", level: "semantic" },
-  ],
+  edges: expandRelations([
+    { source: "radio", target: "antenna" },
+    { source: "radio", target: "cpu" },
+    { source: "cpu", target: "lan" },
+    { source: "cpu", target: "firmware" },
+  ]),
 };
 
 const firewallTemplate: InnerGraphTemplate = {
@@ -117,14 +133,13 @@ const firewallTemplate: InnerGraphTemplate = {
     { id: "wan", label: "WAN interface", variant: "control", weight: 7 },
     { id: "lan", label: "LAN interface", variant: "control", weight: 7 },
   ],
-  edges: [
-    { id: "cpu-asic-phys", source: "cpu", target: "asic", level: "physical" },
-    { id: "cpu-asic-ling", source: "cpu", target: "asic", level: "linguistic" },
-    { id: "cpu-ips-sem", source: "cpu", target: "ips", level: "semantic" },
-    { id: "cpu-policy-sem", source: "cpu", target: "policy", level: "semantic" },
-    { id: "wan-cpu-ling", source: "wan", target: "cpu", level: "linguistic" },
-    { id: "lan-cpu-ling", source: "lan", target: "cpu", level: "linguistic" },
-  ],
+  edges: expandRelations([
+    { source: "cpu", target: "asic" },
+    { source: "cpu", target: "ips" },
+    { source: "cpu", target: "policy" },
+    { source: "wan", target: "cpu" },
+    { source: "lan", target: "cpu" },
+  ]),
 };
 
 const switchTemplate: InnerGraphTemplate = {
@@ -135,12 +150,11 @@ const switchTemplate: InnerGraphTemplate = {
     { id: "ports", label: "Access ports", variant: "info", weight: 6 },
     { id: "uplink", label: "Uplink ports", variant: "info", weight: 6 },
   ],
-  edges: [
-    { id: "asic-mgmt-phys", source: "asic", target: "mgmt", level: "physical" },
-    { id: "asic-mgmt-ling", source: "asic", target: "mgmt", level: "linguistic" },
-    { id: "ports-asic-phys", source: "ports", target: "asic", level: "physical" },
-    { id: "uplink-asic-phys", source: "uplink", target: "asic", level: "physical" },
-  ],
+  edges: expandRelations([
+    { source: "asic", target: "mgmt" },
+    { source: "ports", target: "asic" },
+    { source: "uplink", target: "asic" },
+  ]),
 };
 
 const printerTemplate: InnerGraphTemplate = {
@@ -151,12 +165,11 @@ const printerTemplate: InnerGraphTemplate = {
     { id: "scanner", label: "Scanner", variant: "info", weight: 6 },
     { id: "network", label: "Network module", variant: "info", weight: 6 },
   ],
-  edges: [
-    { id: "controller-engine-phys", source: "controller", target: "engine", level: "physical" },
-    { id: "controller-engine-ling", source: "controller", target: "engine", level: "linguistic" },
-    { id: "controller-scanner-sem", source: "controller", target: "scanner", level: "semantic" },
-    { id: "network-controller-ling", source: "network", target: "controller", level: "linguistic" },
-  ],
+  edges: expandRelations([
+    { source: "controller", target: "engine" },
+    { source: "controller", target: "scanner" },
+    { source: "network", target: "controller" },
+  ]),
 };
 
 const userTemplate: InnerGraphTemplate = {
@@ -166,11 +179,11 @@ const userTemplate: InnerGraphTemplate = {
     { id: "credentials", label: "Credentials", variant: "risk", weight: 5 },
     { id: "device", label: "Endpoint", variant: "control", weight: 7 },
   ],
-  edges: [
-    { id: "persona-credentials-ling", source: "persona", target: "credentials", level: "linguistic" },
-    { id: "persona-device-physical", source: "persona", target: "device", level: "physical" },
-    { id: "device-credentials-sem", source: "device", target: "credentials", level: "semantic" },
-  ],
+  edges: expandRelations([
+    { source: "persona", target: "credentials" },
+    { source: "persona", target: "device" },
+    { source: "device", target: "credentials" },
+  ]),
 };
 
 export const INNER_GRAPH_TEMPLATES: Partial<Record<NodeType, InnerGraphTemplate>> = {

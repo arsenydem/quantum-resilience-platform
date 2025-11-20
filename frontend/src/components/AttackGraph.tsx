@@ -7,7 +7,9 @@ import {
   INNER_GRAPH_TEMPLATES,
   type InnerGraphTemplate,
   type CommunicationLevel,
+  COMMUNICATION_LEVEL_WEIGHTS,
 } from "../data/innerGraphTemplates";
+import { getClusterInteractionChannels } from "../data/clusterInteractions";
 
 interface Props {
   platformNodes: NetworkNode[];
@@ -39,6 +41,12 @@ interface DescriptorGraph {
   hasEdges: boolean;
   nodeTypes: Record<string, string | undefined>;
   nodeLabels: Record<string, string>;
+  nodeData: Record<string, NetworkNode | undefined>;
+}
+
+interface ClusterInteractionGraph {
+  elements: cytoscape.ElementDefinition[];
+  peerCount: number;
 }
 
 const edgeColors: Record<Exclude<Variant, "asset">, string> = {
@@ -65,12 +73,6 @@ const communicationColors: Record<CommunicationLevel, string> = {
   physical: "#0ea5e9",
   linguistic: "#7c3aed",
   semantic: "#f97316",
-};
-
-const communicationWeights: Record<CommunicationLevel, number> = {
-  physical: 6,
-  linguistic: 7,
-  semantic: 8,
 };
 
 const stylesheet: cytoscape.Stylesheet[] = [
@@ -135,6 +137,7 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
   const assetIdMap = new Map<string, string>();
   const nodeTypes: Record<string, string | undefined> = {};
   const nodeLabels: Record<string, string> = {};
+  const nodeData: Record<string, NetworkNode | undefined> = {};
 
   platformNodes.forEach((asset, index) => {
     const assetKey = asset.id || "asset-" + index;
@@ -151,6 +154,7 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
     });
     nodeTypes[assetId] = asset.type;
     nodeLabels[assetId] = asset.name || "Node " + (index + 1);
+    nodeData[assetId] = asset;
 
     if (asset.security_policy) {
       const backupKey = asset.security_policy.backup_frequency || "none";
@@ -234,14 +238,14 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
     });
   });
 
-  return { nodes, edges, hasEdges, nodeTypes, nodeLabels };
+  return { nodes, edges, hasEdges, nodeTypes, nodeLabels, nodeData };
 };
 
 const buildFallbackGraph = (
   graph?: AnalysisResult["attack_graph"],
 ): DescriptorGraph => {
   if (!graph) {
-    return { nodes: [], edges: [], hasEdges: false, nodeTypes: {}, nodeLabels: {} };
+    return { nodes: [], edges: [], hasEdges: false, nodeTypes: {}, nodeLabels: {}, nodeData: {} };
   }
   const nodes: GraphNodeDescriptor[] = graph.nodes.map((node, index) => ({
     id: node.id,
@@ -257,7 +261,14 @@ const buildFallbackGraph = (
     label: edge.label,
     variant: "info",
   }));
-  return { nodes, edges, hasEdges: edges.length > 0, nodeTypes: {}, nodeLabels };
+  return {
+    nodes,
+    edges,
+    hasEdges: edges.length > 0,
+    nodeTypes: {},
+    nodeLabels,
+    nodeData: {},
+  };
 };
 
 const toElements = (graph: DescriptorGraph): cytoscape.ElementDefinition[] => {
@@ -297,7 +308,7 @@ const innerToElements = (template: InnerGraphTemplate): cytoscape.ElementDefinit
     };
   });
   const edgeElements = template.edges.map((edge) => {
-    const weight = typeof edge.weight === "number" ? edge.weight : communicationWeights[edge.level] || 5;
+    const weight = typeof edge.weight === "number" ? edge.weight : COMMUNICATION_LEVEL_WEIGHTS[edge.level] || 5;
     const label = edge.level + " (w=" + weight + ")";
     return {
       data: { id: edge.id, source: edge.source, target: edge.target, label },
@@ -305,6 +316,56 @@ const innerToElements = (template: InnerGraphTemplate): cytoscape.ElementDefinit
     };
   });
   return [...nodeElements, ...edgeElements];
+};
+
+const buildClusterLabel = (node: NetworkNode, weight: number) => {
+  const parts = [node.name || "Node", node.type, "w=" + weight];
+  return parts.join("\n");
+};
+
+const buildClusterInteractionGraph = (
+  node: NetworkNode,
+  allNodes: NetworkNode[],
+): ClusterInteractionGraph => {
+  const peerIds = new Set<string>();
+  node.connections?.forEach((id) => peerIds.add(id));
+  allNodes.forEach((other) => {
+    if (other.id !== node.id && other.connections?.includes(node.id)) {
+      peerIds.add(other.id);
+    }
+  });
+  const peers = allNodes.filter((candidate) => peerIds.has(candidate.id));
+
+  const nodeElements: cytoscape.ElementDefinition[] = [];
+  const edgeElements: cytoscape.ElementDefinition[] = [];
+
+  const primaryWeight = node.weight ?? getNodeWeight(node.name, node.type);
+  nodeElements.push({
+    data: { id: node.id, label: buildClusterLabel(node, primaryWeight) },
+    classes: "node-asset",
+  });
+
+  peers.forEach((peer) => {
+    const peerWeight = peer.weight ?? getNodeWeight(peer.name, peer.type);
+    nodeElements.push({
+      data: { id: peer.id, label: buildClusterLabel(peer, peerWeight) },
+      classes: "node-asset",
+    });
+    const channels = getClusterInteractionChannels(node.type, peer.type);
+    channels.forEach((channel, index) => {
+      edgeElements.push({
+        data: {
+          id: node.id + "-" + peer.id + "-" + channel.level + "-" + index,
+          source: node.id,
+          target: peer.id,
+          label: channel.label + " (w=" + channel.weight + ")",
+        },
+        classes: "edge-level-" + channel.level,
+      });
+    });
+  });
+
+  return { elements: [...nodeElements, ...edgeElements], peerCount: peers.length };
 };
 
 export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
@@ -319,9 +380,11 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
 
   const [innerGraph, setInnerGraph] = useState<InnerGraphTemplate | null>(null);
   const [innerNodeTitle, setInnerNodeTitle] = useState<string>("");
+  const [clusterGraph, setClusterGraph] = useState<ClusterInteractionGraph | null>(null);
 
   useEffect(() => {
     setInnerGraph(null);
+    setClusterGraph(null);
   }, [platformNodes.length]);
 
   if (graphToRender.nodes.length === 0) {
@@ -333,6 +396,13 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
   }
 
   const missingEdges = platformNodes.length > 0 && !graphToRender.hasEdges;
+
+  const closeModal = () => {
+    setInnerGraph(null);
+    setClusterGraph(null);
+  };
+
+  const modalOpen = Boolean(innerGraph || clusterGraph);
 
   return (
     <div>
@@ -347,19 +417,21 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
             cy.off("tap");
             cy.on("tap", "node", (event) => {
               const nodeId = event.target.id();
-              const nodeType = graphToRender.nodeTypes[nodeId];
-              if (!nodeType) return;
-              const template = INNER_GRAPH_TEMPLATES[nodeType as keyof typeof INNER_GRAPH_TEMPLATES];
-              if (!template) return;
-              setInnerNodeTitle(graphToRender.nodeLabels[nodeId] || template.title);
-              setInnerGraph(template);
+              const platformNode = graphToRender.nodeData[nodeId];
+              if (!platformNode) return;
+              const template = INNER_GRAPH_TEMPLATES[platformNode.type];
+              const cluster = buildClusterInteractionGraph(platformNode, platformNodes);
+              setInnerNodeTitle(graphToRender.nodeLabels[nodeId] || platformNode.name || platformNode.id);
+              setInnerGraph(template ?? null);
+              setClusterGraph(cluster);
             });
           }}
         />
       </div>
       {missingEdges && (
         <p className="mt-3 text-sm text-amber-600">
-          Not enough fields were filled in to build connections. Add, for example, antivirus, encryption or Wi-Fi settings.
+          Not enough fields were filled in to build connections. Add, for example, antivirus, encryption or Wi-Fi
+          settings.
         </p>
       )}
       {!platformNodes.length && fallbackGraph && (
@@ -368,34 +440,61 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
         </p>
       )}
 
-      {innerGraph && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
-          onClick={() => setInnerGraph(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-xl p-6 max-w-4xl w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={closeModal}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-5xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-2xl font-bold">{innerGraph.title}</h3>
+                <h3 className="text-2xl font-bold">{innerGraph?.title || "Cluster view"}</h3>
                 <p className="text-sm text-slate-500">{innerNodeTitle}</p>
               </div>
-              <button
-                onClick={() => setInnerGraph(null)}
-                className="px-4 py-2 text-sm border rounded-lg hover:bg-slate-50"
-              >
+              <button onClick={closeModal} className="px-4 py-2 text-sm border rounded-lg hover:bg-slate-50">
                 Close
               </button>
             </div>
-            <div className="h-[420px] border rounded-xl bg-slate-50">
-              <CytoscapeComponent
-                elements={innerToElements(innerGraph)}
-                layout={{ name: "concentric", animate: false, padding: 40, nodeDimensionsIncludeLabels: true }}
-                stylesheet={stylesheet}
-                style={{ width: "100%", height: "100%" }}
-              />
+            <div className="grid gap-6 lg:grid-cols-2">
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-lg font-semibold">Inner components</h4>
+                  {!innerGraph && <span className="text-xs text-slate-400">Template missing</span>}
+                </div>
+                <div className="h-[360px] border rounded-xl bg-slate-50 flex items-center justify-center">
+                  {innerGraph ? (
+                    <CytoscapeComponent
+                      elements={innerToElements(innerGraph)}
+                      layout={{ name: "concentric", animate: false, padding: 40, nodeDimensionsIncludeLabels: true }}
+                      stylesheet={stylesheet}
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-500 px-6 text-center">
+                      No template defined for this node type yet. Reach out if it should be added.
+                    </p>
+                  )}
+                </div>
+              </section>
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-lg font-semibold">Cluster interactions</h4>
+                </div>
+                <div className="h-[360px] border rounded-xl bg-slate-50 flex items-center justify-center">
+                  {clusterGraph ? (
+                    <CytoscapeComponent
+                      elements={clusterGraph.elements}
+                      layout={{ name: "cose", animate: false, padding: 40, nodeDimensionsIncludeLabels: true }}
+                      stylesheet={stylesheet}
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <p className="text-sm text-slate-500 px-6 text-center">No peer nodes detected.</p>
+                  )}
+                </div>
+                {clusterGraph && clusterGraph.peerCount === 0 && (
+                  <p className="mt-2 text-xs text-amber-600">
+                    Add connections for this asset to visualize multi-level interfaces with neighbors.
+                  </p>
+                )}
+              </section>
             </div>
           </div>
         </div>
