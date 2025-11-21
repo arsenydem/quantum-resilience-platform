@@ -63,10 +63,10 @@ const backupWeights: Record<string, number> = {
 };
 
 const backupLabels: Record<string, string> = {
-  none: "none",
-  daily: "daily",
-  weekly: "weekly",
-  monthly: "monthly",
+  none: "нет",
+  daily: "ежедневно",
+  weekly: "еженедельно",
+  monthly: "ежемесячно",
 };
 
 const communicationColors: Record<CommunicationLevel, string> = {
@@ -147,13 +147,13 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
 
     nodes.push({
       id: assetId,
-      title: asset.name || "Node " + (index + 1),
+      title: asset.name || "Узел " + (index + 1),
       subtitle: asset.type,
       weight: assetWeight,
       variant: "asset",
     });
     nodeTypes[assetId] = asset.type;
-    nodeLabels[assetId] = asset.name || "Node " + (index + 1);
+    nodeLabels[assetId] = asset.name || "Узел " + (index + 1);
     nodeData[assetId] = asset;
 
     if (asset.security_policy) {
@@ -161,12 +161,12 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
       const policyNodeId = assetId + "-policy";
       nodes.push({
         id: policyNodeId,
-        title: asset.security_policy.password_hashed ? "Passwords hashed" : "Passwords plain",
-        subtitle: "Backup: " + backupLabels[backupKey],
+        title: asset.security_policy.password_hashed ? "Пароли хэшируются" : "Пароли без хэшей",
+        subtitle: "Резервное копирование: " + backupLabels[backupKey],
         weight: backupWeights[backupKey],
         variant: asset.security_policy.password_hashed ? "control" : "risk",
       });
-      nodeLabels[policyNodeId] = asset.security_policy.password_hashed ? "Passwords hashed" : "Passwords plain";
+      nodeLabels[policyNodeId] = asset.security_policy.password_hashed ? "Пароли хэшируются" : "Пароли без хэшей";
       edges.push({
         id: assetId + "-policy-edge",
         source: assetId,
@@ -178,11 +178,7 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
       hasEdges = true;
     }
 
-    const addDescriptor = (
-      title: string,
-      subtitle: string | undefined,
-      variant: Variant,
-    ) => {
+    const addDescriptor = (title: string, subtitle: string | undefined, variant: Variant) => {
       const descriptorId = assetId + "-feature-" + featureCounter++;
       const descriptorWeight = subtitle ? getNodeWeight(subtitle, asset.type) : undefined;
       nodes.push({ id: descriptorId, title, subtitle, variant, weight: descriptorWeight });
@@ -191,27 +187,31 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
         id: assetId + "-" + descriptorId,
         source: assetId,
         target: descriptorId,
-        label: variant === "risk" ? "gap" : "detail",
+        label: variant === "risk" ? "риск" : "деталь",
         variant: variant === "risk" ? "risk" : "info",
         weight: descriptorWeight,
       });
       hasEdges = true;
     };
 
-    if (asset.os) addDescriptor("OS", asset.os, "info");
-    if (asset.antivirus) addDescriptor("Antivirus", asset.antivirus, "control");
-    if (asset.encryption?.length) addDescriptor("Encryption", asset.encryption.join(", "), "control");
+    if (asset.os) addDescriptor("ОС", asset.os, "info");
+    if (asset.antivirus) addDescriptor("Антивирус", asset.antivirus, "control");
+    if (asset.encryption?.length) addDescriptor("Шифрование", asset.encryption.join(", "), "control");
     if (asset.vpn) addDescriptor("VPN", asset.vpn, "control");
     if (asset.wifi) {
       const secure = asset.wifi.password && asset.wifi.encryption;
-      const wifiLabel = ((asset.wifi.encryption || "") + " " + (asset.wifi.password ? "(password set)" : "(open)")).trim();
-      addDescriptor("Wi-Fi", wifiLabel, secure ? "control" : "risk");
+      const wifiLabel = (
+        (asset.wifi.encryption || "") +
+        " " +
+        (asset.wifi.password ? "(пароль задан)" : "(открытая сеть)")
+      ).trim();
+      addDescriptor("Wi‑Fi", wifiLabel, secure ? "control" : "risk");
     }
-    if (asset.professional_software?.length) addDescriptor("Software", asset.professional_software.join(", "), "info");
+    if (asset.professional_software?.length) addDescriptor("ПО", asset.professional_software.join(", "), "info");
     if (asset.personal_data?.enabled) {
       addDescriptor(
-        "Personal data",
-        "~" + (asset.personal_data.count || "?") + " entries",
+        "Персональные данные",
+        "~" + (asset.personal_data.count || "?") + " записей",
         asset.encryption?.length ? "control" : "risk",
       );
     }
@@ -230,7 +230,7 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
         id: "link-" + sourceId + "-" + mappedTarget,
         source: sourceId,
         target: mappedTarget,
-        label: "link",
+        label: "связь",
         variant: "info",
         weight: Math.round((sourceWeight + targetWeight) / 2),
       });
@@ -278,7 +278,7 @@ const toElements = (graph: DescriptorGraph): cytoscape.ElementDefinition[] => {
     weights.set(descriptor.id, nodeWeight);
     const parts = [descriptor.title];
     if (descriptor.subtitle) parts.push(descriptor.subtitle);
-    parts.push("w=" + nodeWeight);
+    parts.push("вес=" + nodeWeight);
     return {
       data: { id: descriptor.id, label: parts.join("\n") },
       classes: "node-" + descriptor.variant,
@@ -289,7 +289,7 @@ const toElements = (graph: DescriptorGraph): cytoscape.ElementDefinition[] => {
     const sourceWeight = weights.get(edge.source) ?? 5;
     const targetWeight = weights.get(edge.target) ?? 5;
     const weight = edge.weight ?? Math.round((sourceWeight + targetWeight) / 2);
-    const label = edge.label ? edge.label + " (w=" + weight + ")" : "w=" + weight;
+    const label = edge.label ? edge.label + " (вес=" + weight + ")" : "вес=" + weight;
     return {
       data: { id: edge.id, source: edge.source, target: edge.target, label },
       classes: "edge-" + edge.variant,
@@ -303,13 +303,13 @@ const innerToElements = (template: InnerGraphTemplate): cytoscape.ElementDefinit
   const nodeElements = template.nodes.map((node) => {
     const nodeWeight = typeof node.weight === "number" ? node.weight : 5;
     return {
-      data: { id: node.id, label: node.label + "\nw=" + nodeWeight },
+      data: { id: node.id, label: node.label + "\nвес=" + nodeWeight },
       classes: "node-" + (node.variant || "info"),
     };
   });
   const edgeElements = template.edges.map((edge) => {
     const weight = typeof edge.weight === "number" ? edge.weight : COMMUNICATION_LEVEL_WEIGHTS[edge.level] || 5;
-    const label = edge.level + " (w=" + weight + ")";
+    const label = edge.level + " (вес=" + weight + ")";
     return {
       data: { id: edge.id, source: edge.source, target: edge.target, label },
       classes: "edge-level-" + edge.level,
@@ -390,7 +390,7 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
   if (graphToRender.nodes.length === 0) {
     return (
       <div className="p-6 border rounded-xl bg-slate-50 text-sm text-slate-500">
-        No data to render a graph yet. Please add at least one node.
+        Пока нет данных для построения графа. Добавьте хотя бы один узел.
       </div>
     );
   }
@@ -430,13 +430,13 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
       </div>
       {missingEdges && (
         <p className="mt-3 text-sm text-amber-600">
-          Not enough fields were filled in to build connections. Add, for example, antivirus, encryption or Wi-Fi
-          settings.
+          Недостаточно заполненных полей, чтобы построить связи. Добавьте, например, антивирус, шифрование или настройки
+          Wi‑Fi.
         </p>
       )}
       {!platformNodes.length && fallbackGraph && (
         <p className="mt-3 text-xs text-slate-500">
-          Showing the graph returned by LLM. Fill in your nodes to see the actual topology.
+          Отображается граф, возвращённый LLM. Заполните узлы, чтобы увидеть вашу топологию.
         </p>
       )}
 
@@ -445,18 +445,18 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-5xl w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-2xl font-bold">{innerGraph?.title || "Cluster view"}</h3>
+                <h3 className="text-2xl font-bold">{innerGraph?.title || "Кластер"}</h3>
                 <p className="text-sm text-slate-500">{innerNodeTitle}</p>
               </div>
               <button onClick={closeModal} className="px-4 py-2 text-sm border rounded-lg hover:bg-slate-50">
-                Close
+                Закрыть
               </button>
             </div>
             <div className="grid gap-6 lg:grid-cols-2">
               <section>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-lg font-semibold">Inner components</h4>
-                  {!innerGraph && <span className="text-xs text-slate-400">Template missing</span>}
+                  <h4 className="text-lg font-semibold">Внутренние компоненты</h4>
+                  {!innerGraph && <span className="text-xs text-slate-400">Шаблон не задан</span>}
                 </div>
                 <div className="h-[360px] border rounded-xl bg-slate-50 flex items-center justify-center">
                   {innerGraph ? (
@@ -467,15 +467,13 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
                       style={{ width: "100%", height: "100%" }}
                     />
                   ) : (
-                    <p className="text-sm text-slate-500 px-6 text-center">
-                      No template defined for this node type yet. Reach out if it should be added.
-                    </p>
+                    <p className="text-sm text-slate-500 px-6 text-center">Нет шаблона для этого типа узла.</p>
                   )}
                 </div>
               </section>
               <section>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-lg font-semibold">Cluster interactions</h4>
+                  <h4 className="text-lg font-semibold">Связи кластера</h4>
                 </div>
                 <div className="h-[360px] border rounded-xl bg-slate-50 flex items-center justify-center">
                   {clusterGraph ? (
@@ -486,12 +484,12 @@ export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
                       style={{ width: "100%", height: "100%" }}
                     />
                   ) : (
-                    <p className="text-sm text-slate-500 px-6 text-center">No peer nodes detected.</p>
+                    <p className="text-sm text-slate-500 px-6 text-center">Нет связанных узлов.</p>
                   )}
                 </div>
                 {clusterGraph && clusterGraph.peerCount === 0 && (
                   <p className="mt-2 text-xs text-amber-600">
-                    Add connections for this asset to visualize multi-level interfaces with neighbors.
+                    Добавьте связи для этого актива, чтобы увидеть многоуровневые интерфейсы с соседями.
                   </p>
                 )}
               </section>

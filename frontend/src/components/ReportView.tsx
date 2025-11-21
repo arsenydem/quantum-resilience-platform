@@ -25,22 +25,25 @@ export default function ReportView({ report, nodes }: { report: AnalysisResult; 
         useCORS: true,
         scale: 2,
         logging: false,
+        ignoreElements: (element) => element?.getAttribute?.("data-html2canvas-ignore") === "true",
       });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF.default("p", "mm", "a4");
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
       const imgHeight = (canvas.height * pageWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      const scale = Math.min(1, (pageHeight - 10) / imgHeight);
+      const renderWidth = pageWidth * scale;
+      const renderHeight = imgHeight * scale;
+      const xOffset = (pageWidth - renderWidth) / 2;
+      let position = 5;
+      pdf.addImage(imgData, "PNG", xOffset, position, renderWidth, renderHeight);
+      let heightLeft = renderHeight + position - pageHeight;
       while (heightLeft > 0) {
         pdf.addPage();
-        position = heightLeft - imgHeight;
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        position = 5;
+        pdf.addImage(imgData, "PNG", xOffset, position, renderWidth, renderHeight);
+        heightLeft -= pageHeight - position;
       }
       pdf.save("Отчет-об-устойчивости.pdf");
     } catch (err) {
@@ -145,6 +148,7 @@ export default function ReportView({ report, nodes }: { report: AnalysisResult; 
         <button
           onClick={handleExport}
           disabled={exporting}
+          data-html2canvas-ignore="true"
           className="bg-indigo-600 text-white px-8 py-4 rounded-lg text-xl font-bold hover:bg-indigo-700 flex items-center gap-3 mx-auto disabled:opacity-70 disabled:cursor-not-allowed"
         >
           <Download className="w-6 h-6" />

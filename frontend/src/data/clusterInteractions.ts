@@ -18,9 +18,9 @@ type ClusterInteractionMatrix = Partial<
 const matrix: ClusterInteractionMatrix = {};
 
 const defaultLabels: Record<CommunicationLevel, string> = {
-  physical: "Physical channel",
-  linguistic: "Protocol / driver layer",
-  semantic: "Business / data context",
+  physical: "Физический канал",
+  linguistic: "Протоколы / драйверы",
+  semantic: "Данные / бизнес‑контекст",
 };
 
 const makeChannels = (
@@ -51,87 +51,87 @@ const registerBidirectional = (
 };
 
 registerBidirectional("user", "pc", {
-  physical: "Peripherals / USB / Bluetooth",
-  linguistic: "HID drivers / desktop session",
-  semantic: "Human input & UI intent",
+  physical: "Периферия / USB / Bluetooth",
+  linguistic: "Драйверы HID / сессия",
+  semantic: "Действия пользователя / UI",
 });
 
 registerBidirectional("user", "wifi_ap", {
-  physical: "Radio (2.4/5/6 GHz)",
-  linguistic: "802.11 auth & association",
-  semantic: "App traffic, credentials, MFA",
+  physical: "Радио (2.4/5/6 ГГц)",
+  linguistic: "802.11 аутентификация",
+  semantic: "Трафик, учетные данные, MFA",
 });
 
 registerBidirectional("pc", "wifi_ap", {
-  physical: "Wi-Fi radio / antennas",
-  linguistic: "802.11i / WPA handshake",
-  semantic: "Secure SSID payloads",
+  physical: "Wi‑Fi радио / антенны",
+  linguistic: "802.11i / WPA рукопожатие",
+  semantic: "Шифрованный трафик SSID",
 });
 
 registerBidirectional("pc", "router", {
-  physical: "Ethernet / uplink medium",
-  linguistic: "IP/TCP stack, DHCP/DNS",
-  semantic: "Business application flows",
+  physical: "Ethernet / аплинк",
+  linguistic: "IP/TCP, DHCP/DNS",
+  semantic: "Бизнес‑трафик",
 });
 
 registerBidirectional("pc", "switch", {
-  physical: "Copper/Fiber access link",
-  linguistic: "Ethernet frames, VLAN tags",
-  semantic: "Segmentation & NAC context",
+  physical: "Медь/оптика",
+  linguistic: "Кадры Ethernet, VLAN",
+  semantic: "Сегментация / NAC",
 });
 
 registerBidirectional("pc", "firewall", {
-  physical: "Inline Ethernet / TAP",
-  linguistic: "Stateful inspection stream",
-  semantic: "Policy enforcement & logs",
+  physical: "Инлайн Ethernet / TAP",
+  linguistic: "Поток для stateful‑анализа",
+  semantic: "Политики и журналы",
 });
 
 registerBidirectional("pc", "printer", {
-  physical: "USB / LAN drop",
-  linguistic: "IPP / SMB print protocol",
-  semantic: "Document payload & metadata",
+  physical: "USB / LAN",
+  linguistic: "IPP / SMB",
+  semantic: "Документы и метаданные",
 });
 
 registerBidirectional("router", "wifi_ap", {
-  physical: "PoE/Fiber uplink",
+  physical: "PoE / оптика",
   linguistic: "CAPWAP / 802.11 control",
-  semantic: "SSID config & NAC policies",
+  semantic: "Настройки SSID / NAC",
 });
 
 registerBidirectional("router", "switch", {
-  physical: "Trunk link",
-  linguistic: "Routing / STP / LLDP",
-  semantic: "QoS & segmentation policy",
+  physical: "Транковый линк",
+  linguistic: "Маршрутизация / STP / LLDP",
+  semantic: "QoS и сегментация",
 });
 
 registerBidirectional("router", "firewall", {
-  physical: "Inline network path",
-  linguistic: "Routing & ACL sync",
-  semantic: "Threat intel / security policy",
+  physical: "Инлайн‑путь",
+  linguistic: "Маршруты и ACL",
+  semantic: "Политики / TI",
 });
 
 registerBidirectional("firewall", "switch", {
-  physical: "Inline copper/fiber",
-  linguistic: "802.1X enforcement channel",
-  semantic: "Access logs & policy context",
+  physical: "Инлайн медь/оптика",
+  linguistic: "Канал 802.1X",
+  semantic: "Логи доступа / политики",
 });
 
 registerBidirectional("firewall", "wifi_ap", {
-  physical: "DMZ / controller uplink",
-  linguistic: "CAPWAP security channel",
-  semantic: "Posture, captive portal data",
+  physical: "DMZ / uplink",
+  linguistic: "Защищённый CAPWAP",
+  semantic: "Профиль/портал",
 });
 
 registerBidirectional("switch", "printer", {
-  physical: "Ethernet access port",
-  linguistic: "L2 frames / LLDP",
-  semantic: "Print queues & monitoring",
+  physical: "Порт доступа Ethernet",
+  linguistic: "L2 кадры / LLDP",
+  semantic: "Очереди печати / мониторинг",
 });
 
 registerBidirectional("user", "printer", {
-  physical: "USB / NFC release",
-  linguistic: "Print driver protocol",
-  semantic: "Printed document content",
+  physical: "USB / NFC",
+  linguistic: "Протокол драйвера печати",
+  semantic: "Контент печати",
 });
 
 export const getClusterInteractionChannels = (

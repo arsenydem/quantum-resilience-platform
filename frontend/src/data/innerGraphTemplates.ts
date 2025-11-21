@@ -49,22 +49,22 @@ export interface InnerGraphTemplate {
 }
 
 const pcTemplate: InnerGraphTemplate = {
-  title: "PC structure",
+  title: "Структура ПК",
   nodes: [
-    { id: "cpu", label: "CPU", variant: "asset", weight: 9 },
-    { id: "gpu", label: "GPU", variant: "asset", weight: 9 },
-    { id: "ram", label: "RAM", variant: "control", weight: 8 },
-    { id: "mb", label: "Motherboard", variant: "control", weight: 8 },
+    { id: "cpu", label: "ЦП", variant: "asset", weight: 9 },
+    { id: "gpu", label: "ГП", variant: "asset", weight: 9 },
+    { id: "ram", label: "ОЗУ", variant: "control", weight: 8 },
+    { id: "mb", label: "Материнская плата", variant: "control", weight: 8 },
     { id: "ssd", label: "SSD", variant: "control", weight: 8 },
     { id: "hdd", label: "HDD", variant: "info", weight: 6 },
-    { id: "keyboard", label: "Keyboard", variant: "info", weight: 5 },
-    { id: "mouse", label: "Mouse", variant: "info", weight: 5 },
-    { id: "webcam", label: "Webcam", variant: "info", weight: 5 },
-    { id: "mic", label: "Microphone", variant: "info", weight: 5 },
-    { id: "monitor", label: "Monitor", variant: "info", weight: 6 },
-    { id: "speakers", label: "Speakers", variant: "info", weight: 5 },
-    { id: "headphones", label: "Headphones", variant: "info", weight: 5 },
-    { id: "wifi", label: "Wi-Fi adapter", variant: "control", weight: 7 },
+    { id: "keyboard", label: "Клавиатура", variant: "info", weight: 5 },
+    { id: "mouse", label: "Мышь", variant: "info", weight: 5 },
+    { id: "webcam", label: "Веб-камера", variant: "info", weight: 5 },
+    { id: "mic", label: "Микрофон", variant: "info", weight: 5 },
+    { id: "monitor", label: "Монитор", variant: "info", weight: 6 },
+    { id: "speakers", label: "Акустика", variant: "info", weight: 5 },
+    { id: "headphones", label: "Наушники", variant: "info", weight: 5 },
+    { id: "wifi", label: "Wi‑Fi адаптер", variant: "control", weight: 7 },
   ],
   edges: expandRelations([
     { source: "cpu", target: "gpu" },
@@ -86,15 +86,15 @@ const pcTemplate: InnerGraphTemplate = {
 };
 
 const routerTemplate: InnerGraphTemplate = {
-  title: "Router structure",
+  title: "Маршрутизатор",
   nodes: [
-    { id: "cpu", label: "Routing CPU", variant: "asset", weight: 9 },
-    { id: "asic", label: "Switch ASIC", variant: "asset", weight: 8 },
+    { id: "cpu", label: "ЦП маршрутизации", variant: "asset", weight: 9 },
+    { id: "asic", label: "Коммутационный ASIC", variant: "asset", weight: 8 },
     { id: "ram", label: "RAM", variant: "control", weight: 7 },
-    { id: "firmware", label: "Firmware", variant: "info", weight: 6 },
-    { id: "wan", label: "WAN port", variant: "control", weight: 7 },
-    { id: "lan", label: "LAN switch", variant: "control", weight: 8 },
-    { id: "wifi", label: "Wi-Fi radio", variant: "info", weight: 7 },
+    { id: "firmware", label: "Прошивка", variant: "info", weight: 6 },
+    { id: "wan", label: "WAN порт", variant: "control", weight: 7 },
+    { id: "lan", label: "LAN коммутатор", variant: "control", weight: 8 },
+    { id: "wifi", label: "Wi‑Fi радио", variant: "info", weight: 7 },
   ],
   edges: expandRelations([
     { source: "cpu", target: "asic" },
@@ -107,13 +107,13 @@ const routerTemplate: InnerGraphTemplate = {
 };
 
 const wifiTemplate: InnerGraphTemplate = {
-  title: "Wi-Fi access point",
+  title: "Wi‑Fi точка доступа",
   nodes: [
-    { id: "radio", label: "Radio module", variant: "asset", weight: 8 },
-    { id: "antenna", label: "Antennas", variant: "info", weight: 6 },
-    { id: "cpu", label: "Controller", variant: "control", weight: 8 },
-    { id: "lan", label: "Uplink", variant: "control", weight: 7 },
-    { id: "firmware", label: "Firmware", variant: "info", weight: 6 },
+    { id: "radio", label: "Радиомодуль", variant: "asset", weight: 8 },
+    { id: "antenna", label: "Антенны", variant: "info", weight: 6 },
+    { id: "cpu", label: "Контроллер", variant: "control", weight: 8 },
+    { id: "lan", label: "Аплинк", variant: "control", weight: 7 },
+    { id: "firmware", label: "Прошивка", variant: "info", weight: 6 },
   ],
   edges: expandRelations([
     { source: "radio", target: "antenna" },
@@ -124,14 +124,14 @@ const wifiTemplate: InnerGraphTemplate = {
 };
 
 const firewallTemplate: InnerGraphTemplate = {
-  title: "Firewall",
+  title: "Межсетевой экран",
   nodes: [
-    { id: "cpu", label: "Inspection CPU", variant: "asset", weight: 9 },
+    { id: "cpu", label: "ЦП проверки", variant: "asset", weight: 9 },
     { id: "asic", label: "Content ASIC", variant: "control", weight: 8 },
-    { id: "ips", label: "IPS engine", variant: "control", weight: 8 },
-    { id: "policy", label: "Policy DB", variant: "info", weight: 7 },
-    { id: "wan", label: "WAN interface", variant: "control", weight: 7 },
-    { id: "lan", label: "LAN interface", variant: "control", weight: 7 },
+    { id: "ips", label: "IPS‑движок", variant: "control", weight: 8 },
+    { id: "policy", label: "База политик", variant: "info", weight: 7 },
+    { id: "wan", label: "WAN интерфейс", variant: "control", weight: 7 },
+    { id: "lan", label: "LAN интерфейс", variant: "control", weight: 7 },
   ],
   edges: expandRelations([
     { source: "cpu", target: "asic" },
@@ -143,12 +143,12 @@ const firewallTemplate: InnerGraphTemplate = {
 };
 
 const switchTemplate: InnerGraphTemplate = {
-  title: "Switch",
+  title: "Коммутатор",
   nodes: [
     { id: "asic", label: "Switch ASIC", variant: "asset", weight: 8 },
-    { id: "mgmt", label: "Management CPU", variant: "control", weight: 7 },
-    { id: "ports", label: "Access ports", variant: "info", weight: 6 },
-    { id: "uplink", label: "Uplink ports", variant: "info", weight: 6 },
+    { id: "mgmt", label: "Управляющий ЦП", variant: "control", weight: 7 },
+    { id: "ports", label: "Порты доступа", variant: "info", weight: 6 },
+    { id: "uplink", label: "Аплинк‑порты", variant: "info", weight: 6 },
   ],
   edges: expandRelations([
     { source: "asic", target: "mgmt" },
@@ -158,12 +158,12 @@ const switchTemplate: InnerGraphTemplate = {
 };
 
 const printerTemplate: InnerGraphTemplate = {
-  title: "Printer",
+  title: "Принтер",
   nodes: [
-    { id: "controller", label: "Controller", variant: "asset", weight: 7 },
-    { id: "engine", label: "Print engine", variant: "control", weight: 7 },
-    { id: "scanner", label: "Scanner", variant: "info", weight: 6 },
-    { id: "network", label: "Network module", variant: "info", weight: 6 },
+    { id: "controller", label: "Контроллер", variant: "asset", weight: 7 },
+    { id: "engine", label: "Печатающий узел", variant: "control", weight: 7 },
+    { id: "scanner", label: "Сканер", variant: "info", weight: 6 },
+    { id: "network", label: "Сетевой модуль", variant: "info", weight: 6 },
   ],
   edges: expandRelations([
     { source: "controller", target: "engine" },
@@ -173,11 +173,11 @@ const printerTemplate: InnerGraphTemplate = {
 };
 
 const userTemplate: InnerGraphTemplate = {
-  title: "User workstation",
+  title: "Рабочее место пользователя",
   nodes: [
-    { id: "persona", label: "User", variant: "asset", weight: 6 },
-    { id: "credentials", label: "Credentials", variant: "risk", weight: 5 },
-    { id: "device", label: "Endpoint", variant: "control", weight: 7 },
+    { id: "persona", label: "Пользователь", variant: "asset", weight: 6 },
+    { id: "credentials", label: "Учетные данные", variant: "risk", weight: 5 },
+    { id: "device", label: "Устройство", variant: "control", weight: 7 },
   ],
   edges: expandRelations([
     { source: "persona", target: "credentials" },
