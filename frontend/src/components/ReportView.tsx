@@ -21,11 +21,13 @@ export default function ReportView({ report, nodes }: { report: AnalysisResult; 
     setExporting(true);
     try {
       const [html2canvas, jsPDF] = await Promise.all([import("html2canvas"), import("jspdf")]);
+      const captureScale = Math.min(4, Math.max(2, (window.devicePixelRatio || 1) * 2));
       const canvas = await html2canvas.default(reportRef.current, {
         useCORS: true,
-        scale: 2,
+        scale: captureScale,
         logging: false,
         ignoreElements: (element) => element?.getAttribute?.("data-html2canvas-ignore") === "true",
+        backgroundColor: "#ffffff",
       });
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF.default("p", "mm", "a4");

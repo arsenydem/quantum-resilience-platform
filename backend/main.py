@@ -115,18 +115,38 @@ SUPPORT_CONTROLS_FSTEK = {
     "wifi_encryption": "WPA3-Enterprise",
     "firewall": "ViPNet Coordinator NGFW",
 }
+SUPPORT_CONTROLS_QUANTUM = {
+    "antivirus": "EDR with PQC hardening",
+    "disk_encryption": "Hybrid AES-256 + PQC (Kyber)",
+    "vpn": "Post-Quantum VPN (Kyber/Dilithium)",
+    "mfa": "FIDO2 token",
+    "wifi_password": "VeryStrongPass!2025#PQC",
+    "wifi_encryption": "WPA3-Enterprise (192-bit)",
+    "firewall": "NGFW with TLS1.3 + PQC roadmap",
+}
+SUPPORT_CONTROLS_QUANTUM_FSTEK = {
+    "antivirus": "Kaspersky Endpoint Security (ПАК)",
+    "disk_encryption": "ViPNet Client (ГОСТ+PQC)",
+    "vpn": "ViPNet TLS c PQ-профилем",
+    "mfa": "Rutoken ECP 2.0",
+    "wifi_password": "VeryStrongPass!2025#PQC",
+    "wifi_encryption": "WPA3-Enterprise (192-bit)",
+    "firewall": "ViPNet Coordinator NGFW",
+}
 GENERAL_RECOMMENDATIONS = {
     "antivirus_missing": "Install certified endpoint protection (EDR/antivirus) on every workstation.",
     "disk_missing": "Encrypt disks on workstations and servers (full-disk AES-256).",
     "vpn_missing": "Introduce secure VPN/Zero-Trust access for remote segments.",
     "mfa_missing": "Protect privileged accounts with MFA or hardware tokens.",
     "wifi_insecure": "Switch Wi-Fi to WPA3-Enterprise and set strong passwords.",
+    "wifi_quantum_weak": "For quantum-capable adversaries use WPA3-Enterprise (192-bit) and long random passphrases.",
     "password_plain": "Hash stored passwords and forbid plaintext credential storage.",
     "backup_missing": "Schedule daily offline backups stored in an isolated network.",
     "firewall_unknown": "Deploy an NGFW/WAF and document traffic segmentation.",
     "firewall_absent": "Add a perimeter firewall to separate internal segments.",
     "siem_missing": "Deploy SIEM/SOC to aggregate logs from all systems.",
     "personal_data_unprotected": "Encrypt personal data stores and restrict access to them.",
+    "pqc_missing": "Adopt hybrid post-quantum crypto (Kyber/Dilithium) for VPN and data at rest.",
 }
 FSTEK_RECOMMENDATIONS = {
     "antivirus_missing": "Разверните Kaspersky Endpoint Security или другой сертифицированный ФСТЭК EDR.",
@@ -134,12 +154,14 @@ FSTEK_RECOMMENDATIONS = {
     "vpn_missing": "Организуйте защищённый канал на ViPNet TLS или Континент.",
     "mfa_missing": "Включите Rutoken/JaCarta для администраторов и критичных ролей.",
     "wifi_insecure": "Настройте Wi-Fi в режиме WPA3-Enterprise с сертификатами ФСТЭК.",
+    "wifi_quantum_weak": "Для квантовых угроз переведите Wi‑Fi в WPA3-Enterprise (192-bit) и используйте длинные случайные ключи.",
     "password_plain": "Храните пароли только в зашифрованном виде и контролируйте управление ключами.",
     "backup_missing": "Настройте ежедневные оффлайн-копии с контролем ФСТЭК.",
     "firewall_unknown": "Замените МЭ на ViPNet Coordinator NGFW или аналог, имеющий сертификат.",
     "firewall_absent": "Добавьте сертифицированный ФСТЭК межсетевой экран между сегментами.",
     "siem_missing": "Разверните ФСТЭК-сертифицированный SIEM/SOC (ОКБ САПР, РусГидро и т.д.).",
     "personal_data_unprotected": "Защитите ПДн ViPNet-шифрованием и аппаратными токенами доступа.",
+    "pqc_missing": "Используйте гибридные ГОСТ+PQC профили в ViPNet TLS/Client для защиты трафика и хранилищ.",
 }
 
 
@@ -168,6 +190,22 @@ def is_wifi_secure(wifi: WifiSettings | None) -> bool:
         return False
     encryption = wifi.encryption.lower()
     return any(prefix in encryption for prefix in STRONG_WIFI_PREFIXES)
+
+
+def is_wifi_quantum_ready(wifi: WifiSettings | None) -> bool:
+    if not wifi:
+        return False
+    if not wifi.password or len(wifi.password) < 12:
+        return False
+    if not wifi.encryption:
+        return False
+    enc = wifi.encryption.lower()
+    return "wpa3" in enc and ("192" in enc or "enterprise" in enc)
+
+
+def has_pq_encryption(values: List[str]) -> bool:
+    normalized = [v.lower() for v in values]
+    return any("kyber" in v or "post-quantum" in v or "pqc" in v or "pq" in v for v in normalized)
 
 
 def normalize_backup(freq: str | None) -> str:
@@ -211,6 +249,7 @@ def evaluate_security(
     nodes: List[NetworkNode],
     fstec_only: bool = False,
     pd_sensitive: bool = False,
+    quantum_mode: bool = False,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Tuple[str, str]]]:
     if not nodes:
         metrics = {
@@ -243,7 +282,14 @@ def evaluate_security(
     finding_texts: set[str] = set()
     finding_codes: set[str] = set()
     ideal_nodes: List[Dict[str, Any]] = []
-    controls = SUPPORT_CONTROLS_FSTEK if fstec_only else SUPPORT_CONTROLS_DEFAULT
+    if quantum_mode and fstec_only:
+        controls = SUPPORT_CONTROLS_QUANTUM_FSTEK
+    elif quantum_mode:
+        controls = SUPPORT_CONTROLS_QUANTUM
+    elif fstec_only:
+        controls = SUPPORT_CONTROLS_FSTEK
+    else:
+        controls = SUPPORT_CONTROLS_DEFAULT
 
     firewall_present = any(node.type == "firewall" for node in nodes)
     siem_present = False
@@ -307,15 +353,26 @@ def evaluate_security(
             ideal["auth_type"] = controls["mfa"]
 
         wifi_secure = is_wifi_secure(node.wifi)
+        wifi_quantum = is_wifi_quantum_ready(node.wifi)
         if node.type == "wifi_ap" or node.wifi:
-            if wifi_secure:
-                control_adjustments += 5
-                control_details.append(f"+5 {node.name}: Wi-Fi hardened")
+            if quantum_mode:
+                if wifi_quantum:
+                    control_adjustments += 6
+                    control_details.append(f"+6 {node.name}: Wi‑Fi PQC-ready (WPA3-Enterprise)")
+                else:
+                    control_adjustments -= 14
+                    control_details.append(f"-14 {node.name}: Wi‑Fi не готов к квантовым угрозам")
+                    finding_texts.add("Switch Wi-Fi to WPA3 with strong password")
+                    finding_codes.add("wifi_quantum_weak")
             else:
-                control_adjustments -= 10
-                control_details.append(f"-10 {node.name}: Wi-Fi insecure")
-                finding_texts.add("Switch Wi-Fi to WPA3 with strong password")
-                finding_codes.add("wifi_insecure")
+                if wifi_secure:
+                    control_adjustments += 5
+                    control_details.append(f"+5 {node.name}: Wi‑Fi защищён")
+                else:
+                    control_adjustments -= 10
+                    control_details.append(f"-10 {node.name}: Wi‑Fi небезопасен")
+                    finding_texts.add("Switch Wi-Fi to WPA3 with strong password")
+                    finding_codes.add("wifi_insecure")
             ideal["wifi"] = {
                 "password": controls["wifi_password"],
                 "encryption": controls["wifi_encryption"],
@@ -324,10 +381,10 @@ def evaluate_security(
         policy = node.security_policy
         if policy and policy.password_hashed:
             control_adjustments += 4
-            control_details.append(f"+4 {node.name}: passwords hashed")
+            control_details.append(f"+4 {node.name}: пароли хэшируются")
         else:
             control_adjustments -= 6
-            control_details.append(f"-6 {node.name}: passwords stored openly")
+            control_details.append(f"-6 {node.name}: пароли хранятся открыто")
             finding_texts.add("Hash passwords and protect credential store")
             finding_codes.add("password_plain")
             ensure_security_policy(ideal)
@@ -364,10 +421,10 @@ def evaluate_security(
         if node.personal_data and node.personal_data.enabled:
             if node.encryption or wifi_secure or (policy and policy.password_hashed):
                 control_adjustments += 3
-                control_details.append(f"+3 {node.name}: personal data protected")
+                control_details.append(f"+3 {node.name}: персональные данные защищены")
             else:
                 control_adjustments -= 12
-                control_details.append(f"-12 {node.name}: personal data exposed")
+                control_details.append(f"-12 {node.name}: персональные данные не защищены")
                 finding_texts.add("Encrypt and limit access to personal data")
                 finding_codes.add("personal_data_unprotected")
                 ideal["encryption"] = [controls["disk_encryption"]]
@@ -438,6 +495,22 @@ def evaluate_security(
 
     ideal_nodes.extend(support_nodes)
 
+    if quantum_mode and not any(has_pq_encryption(node.encryption) for node in nodes):
+        control_adjustments -= 8
+        control_details.append("-8 Нет гибридного постквантового шифрования")
+        finding_texts.add("Adopt hybrid post-quantum crypto (Kyber/Dilithium)")
+        finding_codes.add("pqc_missing")
+        ideal_nodes.append({
+            "id": "ideal-pq-gateway",
+            "type": "pc",
+            "name": "PQ Crypto Gateway",
+            "weight": 10.0,
+            "encryption": [controls["disk_encryption"]],
+            "vpn": controls["vpn"],
+            "connections": endpoint_ids,
+            "security_policy": {"password_hashed": True, "backup_frequency": "daily"},
+        })
+
     topology_bonus = 0.0
     if total_nodes > 2:
         if connection_ratio >= 0.6:
@@ -485,6 +558,7 @@ async def analyze(request: AnalysisRequest):
         request.nodes,
         fstec_only=fstec_mode,
         pd_sensitive=request.threat_model.has_large_pd_storage,
+        quantum_mode=bool(request.threat_model.quantum_capability and request.threat_model.quantum_capability.lower() != "none"),
     )
 
     nodes_desc = [

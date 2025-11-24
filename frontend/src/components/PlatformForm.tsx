@@ -14,7 +14,13 @@ const nodeTypes: { value: NodeType; label: string }[] = [
   { value: "user", label: "Пользователь" },
 ];
 
-const MOCK_NODES: Omit<NetworkNode, "id">[] = [
+type MockNode = Omit<NetworkNode, "id" | "connections"> & {
+  linkNames?: string[];
+  connections?: string[];
+  id?: string;
+};
+
+const MOCK_NODES: MockNode[] = [
   {
     type: "pc",
     name: "DevOps Workstation",
@@ -32,15 +38,18 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
     },
     professional_software: ["Visual Studio", "Docker Desktop", "Terraform"],
     auth_type: "Пароль",
+    linkNames: ["Perimeter Firewall", "Branch Router", "Guest Wi-Fi"],
   },
   {
     type: "firewall",
     name: "Perimeter Firewall",
     firewall_type: "Next-Generation Firewall",
+    linkNames: ["DevOps Workstation", "Finance Laptop", "Branch Router"],
   },
   {
     type: "router",
     name: "Branch Router",
+    linkNames: ["Perimeter Firewall", "Guest Wi-Fi"],
   },
   {
     type: "pc",
@@ -58,6 +67,7 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
     },
     professional_software: ["1C", "SAP GUI", "MS Office"],
     auth_type: "Смарт-карта",
+    linkNames: ["Perimeter Firewall", "Guest Wi-Fi"],
   },
   {
     type: "wifi_ap",
@@ -72,6 +82,7 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
       backup_frequency: "none",
     },
     professional_software: [],
+    linkNames: ["DevOps Workstation", "Finance Laptop", "Branch Router"],
   },
 ];
 
@@ -211,12 +222,22 @@ export default function PlatformForm({
 
   const applyMockNodes = () => {
     const stamp = Date.now();
-    const prepared = MOCK_NODES.map((mock, index) =>
-      withWeight({
-        ...mock,
-        id: `mock-${index}-${stamp}`,
-      } as NetworkNode),
-    );
+    const withIds = MOCK_NODES.map((mock, index) => ({
+      ...mock,
+      id: `mock-${index}-${stamp}`,
+    }));
+    const nameToId = Object.fromEntries(withIds.map((n) => [n.name, n.id]));
+    const prepared = withIds.map((mock) => {
+      const { linkNames, connections, ...rest } = mock;
+      const resolvedLinks =
+        connections && connections.length
+          ? connections
+          : (linkNames || []).map((name) => nameToId[name]).filter(Boolean);
+      return withWeight({
+        ...(rest as NetworkNode),
+        connections: resolvedLinks,
+      });
+    });
     setNodes(prepared);
     setShowForm(false);
     setEditing(null);
