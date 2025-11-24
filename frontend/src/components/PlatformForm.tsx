@@ -62,8 +62,7 @@ const MOCK_NODES: Omit<NetworkNode, "id">[] = [
   {
     type: "wifi_ap",
     name: "Guest Wi-Fi",
-    os: "Linux",
-    antivirus: "",
+    // ОС убрана, чтобы не светилась для Wi-Fi
     wifi: {
       password: "",
       encryption: "WPA2-Personal",
@@ -160,6 +159,56 @@ export default function PlatformForm({
   const [editing, setEditing] = useState<NetworkNode | null>(null);
   const [currentType, setCurrentType] = useState<NodeType>("pc");
 
+  // состояние силы пароля Wi-Fi
+  const [wifiPasswordStrength, setWifiPasswordStrength] = useState<
+    "empty" | "weak" | "medium" | "strong"
+  >("empty");
+
+  const evaluatePasswordStrength = (
+    password: string,
+  ): "empty" | "weak" | "medium" | "strong" => {
+    if (!password) return "empty";
+
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    if (score <= 2) return "weak";
+    if (score <= 4) return "medium";
+    return "strong";
+  };
+
+  const passwordBorderClass =
+    wifiPasswordStrength === "weak"
+      ? "border-red-400 focus:ring-red-400"
+      : wifiPasswordStrength === "medium"
+      ? "border-yellow-400 focus:ring-yellow-400"
+      : wifiPasswordStrength === "strong"
+      ? "border-green-500 focus:ring-green-500"
+      : "";
+
+  const passwordTextClass =
+    wifiPasswordStrength === "weak"
+      ? "text-red-500"
+      : wifiPasswordStrength === "medium"
+      ? "text-yellow-500"
+      : wifiPasswordStrength === "strong"
+      ? "text-green-600"
+      : "";
+
+  const passwordLabel =
+    wifiPasswordStrength === "weak"
+      ? "Пароль слабый — его легко подобрать."
+      : wifiPasswordStrength === "medium"
+      ? "Пароль средней сложности."
+      : wifiPasswordStrength === "strong"
+      ? "Пароль сильный — так уже ок."
+      : "";
+
   const applyMockNodes = () => {
     const stamp = Date.now();
     const prepared = MOCK_NODES.map((mock, index) =>
@@ -171,12 +220,14 @@ export default function PlatformForm({
     setNodes(prepared);
     setShowForm(false);
     setEditing(null);
+    setWifiPasswordStrength("empty");
   };
 
   const clearAllNodes = () => {
     setNodes([]);
     setEditing(null);
     setShowForm(false);
+    setWifiPasswordStrength("empty");
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -215,7 +266,6 @@ export default function PlatformForm({
       os: (data.get("os") as string) || undefined,
       antivirus: (data.get("antivirus") as string) || undefined,
       encryption: encryptionValue ? [encryptionValue] : undefined,
-      // VPN как галочка: если включено — пишем "enabled", иначе undefined
       vpn: data.get("vpn") === "on" ? "enabled" : undefined,
       auth_type: ((data.get("auth_type") as string) || "").trim() || undefined,
       firewall_type:
@@ -240,12 +290,21 @@ export default function PlatformForm({
     }
 
     setShowForm(false);
+    setWifiPasswordStrength("empty");
     form.reset();
   };
 
   const startEdit = (node: NetworkNode) => {
     setEditing(node);
     setCurrentType(node.type);
+
+    if (node.type === "wifi_ap") {
+      const pwd = (node as any)?.wifi?.password || "";
+      setWifiPasswordStrength(evaluatePasswordStrength(pwd));
+    } else {
+      setWifiPasswordStrength("empty");
+    }
+
     setShowForm(true);
   };
 
@@ -278,6 +337,7 @@ export default function PlatformForm({
               setEditing(null);
               setCurrentType("pc");
               setShowForm(true);
+              setWifiPasswordStrength("empty");
             }}
             className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700"
           >
@@ -433,7 +493,6 @@ export default function PlatformForm({
                     </select>
                   </div>
 
-                  {/* VPN только галочкой */}
                   <label className="flex items-center gap-3 text-sm">
                     <input
                       type="checkbox"
@@ -444,7 +503,6 @@ export default function PlatformForm({
                     <span>Используется корпоративный VPN</span>
                   </label>
 
-                  {/* 1f. Тип аутентификации */}
                   <div>
                     <label className="block text-sm font-medium">
                       Тип аутентификации
@@ -493,7 +551,7 @@ export default function PlatformForm({
 
               {/* 7. Точка доступа Wi-Fi */}
               {currentType === "wifi_ap" && (
-                <div className="space-y-4 border-т pt-4">
+                <div className="space-y-4 border-t pt-4">
                   <h4 className="font-semibold text-lg">
                     Параметры Wi-Fi точки доступа
                   </h4>
@@ -504,9 +562,19 @@ export default function PlatformForm({
                     <input
                       name="wifi_password"
                       type="text"
-                      className="w-full mt-1 p-3 border rounded-lg"
+                      className={`w-full mt-1 p-3 border rounded-lg ${passwordBorderClass}`}
                       defaultValue={(editing as any)?.wifi?.password}
+                      onChange={(e) =>
+                        setWifiPasswordStrength(
+                          evaluatePasswordStrength(e.target.value),
+                        )
+                      }
                     />
+                    {wifiPasswordStrength !== "empty" && (
+                      <p className={`mt-1 text-xs font-medium ${passwordTextClass}`}>
+                        {passwordLabel}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium">
@@ -638,6 +706,7 @@ export default function PlatformForm({
                   onClick={() => {
                     setShowForm(false);
                     setEditing(null);
+                    setWifiPasswordStrength("empty");
                   }}
                   className="px-6 py-3 border rounded-lg"
                 >

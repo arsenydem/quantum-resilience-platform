@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function PlatformPage() {
   const navigate = useNavigate();
-  const [nodes, setNodes] = useState<NetworkNode[]>([]);
+  const [, setNodes] = useState<NetworkNode[]>([]);
 
   return (
     <PlatformForm
