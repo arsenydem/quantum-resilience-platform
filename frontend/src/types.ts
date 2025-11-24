@@ -81,4 +81,5 @@ export interface AnalysisResult {
   ideal_graph?: AttackGraphData;
   ideal_nodes?: NetworkNode[];
   local_score?: LocalScore;
+  threat_model?: ThreatModel;
 }

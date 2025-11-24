@@ -14,6 +14,7 @@ import { getClusterInteractionChannels } from "../data/clusterInteractions";
 interface Props {
   platformNodes: NetworkNode[];
   fallbackGraph?: AnalysisResult["attack_graph"];
+  isQuantum?: boolean;
 }
 
 type Variant = "asset" | "control" | "info" | "risk";
@@ -129,7 +130,19 @@ const stylesheet: cytoscape.Stylesheet[] = [
   { selector: ".edge-level-semantic", style: { "line-color": communicationColors.semantic, "target-arrow-color": communicationColors.semantic } },
 ];
 
-const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
+const isWifiOk = (wifi: NetworkNode["wifi"], quantum: boolean): { ok: boolean; label: string } => {
+  if (!wifi) return { ok: false, label: "Wi‑Fi: нет данных" };
+  const enc = (wifi.encryption || "").toLowerCase();
+  const hasPwd = Boolean(wifi.password);
+  if (quantum) {
+    const strong = enc.includes("wpa3") && (enc.includes("192") || enc.includes("enterprise"));
+    return { ok: strong && hasPwd, label: wifi.encryption || "Wi‑Fi" };
+  }
+  const strong = enc.includes("wpa2") || enc.includes("wpa3");
+  return { ok: strong && hasPwd, label: wifi.encryption || "Wi‑Fi" };
+};
+
+const buildSecurityGraph = (platformNodes: NetworkNode[], isQuantum: boolean): DescriptorGraph => {
   const nodes: GraphNodeDescriptor[] = [];
   const edges: GraphEdgeDescriptor[] = [];
   let hasEdges = false;
@@ -199,13 +212,9 @@ const buildSecurityGraph = (platformNodes: NetworkNode[]): DescriptorGraph => {
     if (asset.encryption?.length) addDescriptor("Шифрование", asset.encryption.join(", "), "control");
     if (asset.vpn) addDescriptor("VPN", asset.vpn, "control");
     if (asset.wifi) {
-      const secure = asset.wifi.password && asset.wifi.encryption;
-      const wifiLabel = (
-        (asset.wifi.encryption || "") +
-        " " +
-        (asset.wifi.password ? "(пароль задан)" : "(открытая сеть)")
-      ).trim();
-      addDescriptor("Wi‑Fi", wifiLabel, secure ? "control" : "risk");
+      const wifiStatus = isWifiOk(asset.wifi, isQuantum);
+      const wifiLabel = (asset.wifi.encryption || "") + " " + (asset.wifi.password ? "(пароль задан)" : "(открытая сеть)");
+      addDescriptor("Wi‑Fi", wifiLabel.trim(), wifiStatus.ok ? "control" : "risk");
     }
     if (asset.professional_software?.length) addDescriptor("ПО", asset.professional_software.join(", "), "info");
     if (asset.personal_data?.enabled) {
@@ -368,8 +377,8 @@ const buildClusterInteractionGraph = (
   return { elements: [...nodeElements, ...edgeElements], peerCount: peers.length };
 };
 
-export default function AttackGraph({ platformNodes, fallbackGraph }: Props) {
-  const securityGraph = useMemo(() => buildSecurityGraph(platformNodes), [platformNodes]);
+export default function AttackGraph({ platformNodes, fallbackGraph, isQuantum = false }: Props) {
+  const securityGraph = useMemo(() => buildSecurityGraph(platformNodes, isQuantum), [platformNodes, isQuantum]);
   const fallback = useMemo(() => buildFallbackGraph(fallbackGraph), [fallbackGraph]);
   const graphToRender = platformNodes.length ? securityGraph : fallback;
   const elements = useMemo(() => toElements(graphToRender), [graphToRender]);

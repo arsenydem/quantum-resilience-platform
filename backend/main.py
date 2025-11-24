@@ -81,7 +81,11 @@ class AnalysisRequest(BaseModel):
     threat_model: ThreatModel
 
 
-SYSTEM_PROMPT = """You are a quantum-resilience analyst. Always respond with a VALID JSON object and nothing else. Use this strict schema:
+SYSTEM_PROMPT = """You are a cyber/quantum resilience analyst with deep knowledge of:
+- нормативка и контроль ФСТЭК (в т.ч. ГИС/КИИ/ПДн), базовые ГОСТ/крипто требования,
+- лучшие практики архитектуры ИБ (сегментация, NGFW/WAF, VPN/MFA, бэкапы, SIEM/SOC),
+- классические и постквантовые криптографические требования (TLS1.3, WPA3, PQC: Kyber/Dilithium).
+Always respond with a VALID JSON object and nothing else. Use this strict schema:
 {
   "score": <0-100>,
   "summary": "short text",
@@ -271,8 +275,8 @@ def evaluate_security(
     max_weight = max(total_nodes * 10.0, 1.0)
     weight_ratio = min(1.0, total_weight / max_weight)
 
-    base_weight_component = weight_ratio * 50.0
-    base_connection_component = connection_ratio * 20.0
+    base_weight_component = weight_ratio * 45.0
+    base_connection_component = connection_ratio * 25.0
 
     control_adjustments = 0.0
     control_details: List[str] = [
@@ -409,11 +413,11 @@ def evaluate_security(
         if node.type == "firewall":
             firewall_present = True
             if node.firewall_type:
-                control_adjustments += 6
-                control_details.append(f"+6 {node.name}: firewall type defined")
+                control_adjustments += 8
+                control_details.append(f"+8 {node.name}: firewall type defined")
             else:
-                control_adjustments -= 8
-                control_details.append(f"-8 {node.name}: firewall class unknown")
+                control_adjustments -= 12
+                control_details.append(f"-12 {node.name}: firewall class unknown")
                 finding_texts.add("Deploy NGFW/WAF with proper classification")
                 finding_codes.add("firewall_unknown")
             ideal["firewall_type"] = controls["firewall"]
@@ -436,8 +440,8 @@ def evaluate_security(
     endpoint_ids = [node.id for node in nodes]
 
     if not firewall_present:
-        control_adjustments -= 10
-        control_details.append("-10 No perimeter firewall in the architecture")
+        control_adjustments -= 20
+        control_details.append("-20 No perimeter firewall in the architecture")
         finding_texts.add("Add a perimeter firewall between network segments")
         finding_codes.add("firewall_absent")
         support_nodes.append({
@@ -452,8 +456,8 @@ def evaluate_security(
         })
 
     if not siem_present:
-        control_adjustments -= 8
-        control_details.append("-8 No SIEM/SOC collecting events")
+        control_adjustments -= 12
+        control_details.append("-12 No SIEM/SOC collecting events")
         finding_texts.add("Deploy SIEM/SOC to aggregate logs")
         finding_codes.add("siem_missing")
         support_nodes.append({
@@ -467,8 +471,8 @@ def evaluate_security(
         })
 
     if not backup_platform_present:
-        control_adjustments -= 6
-        control_details.append("-6 No dedicated backup appliance")
+        control_adjustments -= 10
+        control_details.append("-10 No dedicated backup appliance")
         finding_texts.add("Deploy a dedicated backup appliance")
         finding_codes.add("backup_missing")
         support_nodes.append({
@@ -561,6 +565,14 @@ async def analyze(request: AnalysisRequest):
         quantum_mode=bool(request.threat_model.quantum_capability and request.threat_model.quantum_capability.lower() != "none"),
     )
 
+    threat = request.threat_model
+    threat_desc = (
+        f"Quantum capability: {threat.quantum_capability}, "
+        f"Error correction: {threat.has_error_correction}, "
+        f"FSTEK: {threat.is_fstec_compliant}, "
+        f"Large PD store: {threat.has_large_pd_storage}"
+    )
+
     nodes_desc = [
         f"- {node.name} ({node.type}): weight={node.weight or 'n/a'}, AV={'yes' if node.antivirus else 'no'}, VPN={'yes' if node.vpn else 'no'}, links={len(node.connections or [])}"
         for node in request.nodes
@@ -577,11 +589,18 @@ async def analyze(request: AnalysisRequest):
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
 
     extra_clause = "Все рекомендации должны соответствовать требованиям ФСТЭК." if fstec_mode else ""
+    rubric = (
+        "Оцени с учётом: наличие NGFW/WAF (отсутствие сильно снижает балл), сегментации и SIEM, ежедневных бэкапов, "
+        "MFA/EDR/дискового шифрования на конечных точках, Wi‑Fi не ниже WPA3-Enterprise; для квантовых угроз — гибридные PQC (Kyber/Dilithium) для VPN/хранилищ и WPA3-Enterprise 192-bit. "
+        "При отсутствии критичных контролей (firewall/SIEM/backup/MFA/Wi‑Fi защита) итоговый балл должен быть значительно ниже, чем при их наличии."
+    )
 
     user_prompt = (
         f"Текущая инфраструктура:\n{chr(10).join(nodes_desc) if nodes_desc else 'узлы отсутствуют'}\n\n"
-        f"Локальная модель оценила стойкость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме. {extra_clause}\n"
-        f"Ниже подробные данные:\n`json\n{payload_json}\n`"
+        f"Модель угроз: {threat_desc}. {extra_clause}\n"
+        f"{rubric}\n"
+        f"Локальная модель оценила стойкость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме.\n"
+        f"Подробные данные:\n`json\n{payload_json}\n`"
     )
 
     try:
@@ -629,6 +648,7 @@ async def analyze(request: AnalysisRequest):
             "attack_graph": attack_graph,
             "local_score": metrics,
             "ideal_nodes": ideal_nodes,
+            "threat_model": request.threat_model.model_dump(),
         }
 
         if "ideal_graph" in data:

@@ -137,12 +137,20 @@ export default function ReportView({ report, nodes }: { report: AnalysisResult; 
       <div className="space-y-10">
         <div>
           <h3 className="text-3xl font-bold mb-4 text-center">Текущая поверхность атаки</h3>
-          <AttackGraph platformNodes={nodes} fallbackGraph={report.attack_graph} />
+          <AttackGraph
+            platformNodes={nodes}
+            fallbackGraph={report.attack_graph}
+            isQuantum={report.threat_model?.quantum_capability === "QuantumAttack"}
+          />
         </div>
 
         <div>
           <h3 className="text-3xl font-bold mb-4 text-center">Идеальное состояние после мер</h3>
-          <AttackGraph platformNodes={idealNodes} fallbackGraph={report.ideal_graph ?? report.attack_graph} />
+          <AttackGraph
+            platformNodes={idealNodes}
+            fallbackGraph={report.ideal_graph ?? report.attack_graph}
+            isQuantum={report.threat_model?.quantum_capability === "QuantumAttack"}
+          />
         </div>
       </div>
 
