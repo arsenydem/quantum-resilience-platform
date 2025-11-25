@@ -28,10 +28,6 @@ const MOCK_NODES: MockNode[] = [
     antivirus: "Kaspersky Endpoint Security",
     encryption: ["BitLocker"],
     vpn: "Corporate VPN (OpenVPN)",
-    wifi: {
-      password: "StrongPass1!", // 11 символов: достаточно для обычных атак, недостаточно для квантовых
-      encryption: "WPA3-Enterprise",
-    },
     security_policy: {
       password_hashed: true,
       backup_frequency: "daily",
@@ -57,10 +53,6 @@ const MOCK_NODES: MockNode[] = [
     os: "macOS",
     antivirus: "ESET NOD32",
     encryption: ["FileVault 2"],
-    wifi: {
-      password: "FinDept24!", // 10 символов
-      encryption: "WPA3-Personal",
-    },
     security_policy: {
       password_hashed: true,
       backup_frequency: "daily",
