@@ -562,7 +562,10 @@ async def analyze(request: AnalysisRequest):
         request.nodes,
         fstec_only=fstec_mode,
         pd_sensitive=request.threat_model.has_large_pd_storage,
-        quantum_mode=bool(request.threat_model.quantum_capability and request.threat_model.quantum_capability.lower() != "none"),
+        quantum_mode=bool(
+            request.threat_model.quantum_capability
+            and request.threat_model.quantum_capability.lower().startswith("quantum")
+        ),
     )
 
     threat = request.threat_model
@@ -589,6 +592,11 @@ async def analyze(request: AnalysisRequest):
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
 
     extra_clause = "Все рекомендации должны соответствовать требованиям ФСТЭК." if fstec_mode else ""
+    quantum_clause = (
+        "Если выбран QuantumAttack — финальный балл не должен быть выше, чем при классической атаке для той же конфигурации. "
+        "Штрафуй за наследованные шифры (WPA2, старые VPN), отсутствие PQC/гибридного шифрования и короткие пароли. "
+        "Если выбран UsualAttack — оцени по классическим требованиям, без штрафов за отсутствие PQC."
+    )
     rubric = (
         "Оцени с учётом: наличие NGFW/WAF (отсутствие сильно снижает балл), сегментации и SIEM, ежедневных бэкапов, "
         "MFA/EDR/дискового шифрования на конечных точках, Wi‑Fi не ниже WPA3-Enterprise; для квантовых угроз — гибридные PQC (Kyber/Dilithium) для VPN/хранилищ и WPA3-Enterprise 192-bit. "
@@ -598,7 +606,7 @@ async def analyze(request: AnalysisRequest):
     user_prompt = (
         f"Текущая инфраструктура:\n{chr(10).join(nodes_desc) if nodes_desc else 'узлы отсутствуют'}\n\n"
         f"Модель угроз: {threat_desc}. {extra_clause}\n"
-        f"{rubric}\n"
+        f"{rubric}\n{quantum_clause}\n"
         f"Локальная модель оценила стойкость в {metrics['value']} баллов. Проверь расчёт, при необходимости скорректируй и верни JSON строго по схеме.\n"
         f"Подробные данные:\n`json\n{payload_json}\n`"
     )

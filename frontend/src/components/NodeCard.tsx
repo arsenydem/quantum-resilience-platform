@@ -61,8 +61,11 @@ export default function NodeCard({ node, onEdit, onDelete }: Props) {
         {node.antivirus && <p>Антивирус: {node.antivirus}</p>}
         {hasSoftware && <p>ПО: {software.join(", ")}</p>}
         {node.wifi && (
-          <p className="text-xs">
-            Wi-Fi: {node.wifi.encryption} {node.wifi.password ? "(пароль задан)" : "(открытая сеть)"}
+          <p className="text-xs break-all">
+            Wi-Fi: {node.wifi.encryption}{" "}
+            {node.wifi.password
+              ? `(пароль: ${node.wifi.password}, длина ${node.wifi.password.length})`
+              : "(открытая сеть)"}
           </p>
         )}
         {node.personal_data?.enabled && (

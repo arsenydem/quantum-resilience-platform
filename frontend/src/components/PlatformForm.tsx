@@ -29,7 +29,7 @@ const MOCK_NODES: MockNode[] = [
     encryption: ["BitLocker"],
     vpn: "Corporate VPN (OpenVPN)",
     wifi: {
-      password: "StrongPass!23",
+      password: "StrongPass1!", // 11 символов: достаточно для обычных атак, недостаточно для квантовых
       encryption: "WPA3-Enterprise",
     },
     security_policy: {
@@ -58,7 +58,7 @@ const MOCK_NODES: MockNode[] = [
     antivirus: "ESET NOD32",
     encryption: ["FileVault 2"],
     wifi: {
-      password: "FinDept@2024",
+      password: "FinDept24!", // 10 символов
       encryption: "WPA3-Personal",
     },
     security_policy: {
@@ -74,7 +74,7 @@ const MOCK_NODES: MockNode[] = [
     name: "Guest Wi-Fi",
     // ОС убрана, чтобы не светилась для Wi-Fi
     wifi: {
-      password: "",
+      password: "Guest123!", // 9 символов
       encryption: "WPA2-Personal",
     },
     security_policy: {
@@ -217,7 +217,7 @@ export default function PlatformForm({
       : wifiPasswordStrength === "medium"
       ? "Пароль средней сложности."
       : wifiPasswordStrength === "strong"
-      ? "Пароль сильный — так уже ок."
+      ? "Пароль сильный"
       : "";
 
   const applyMockNodes = () => {
@@ -342,7 +342,7 @@ export default function PlatformForm({
             onClick={applyMockNodes}
             className="px-4 py-2 border rounded-lg text-sm font-semibold hover:bg-indigo-50"
           >
-            Автозаполнение
+            Шаблон системы
           </button>
           <button
             type="button"

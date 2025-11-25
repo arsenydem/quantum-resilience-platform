@@ -62,7 +62,7 @@ export default function ThreatModelForm({
                     {c.value === "UsualAttack" &&
                       "Классический атакующий без применения квантовых алгоритмов"}
                     {c.value === "QuantumAttack" &&
-                      "Нарушитель с доступом к квантовому ускорителю (Шор/Гровер)"}
+                      "Нарушитель с квантовыми алгоритмами (алгоритм Шора/Гровера)"}
                   </div>
                 </div>
               </label>
@@ -116,7 +116,7 @@ export default function ThreatModelForm({
             disabled={loading}
             className="px-10 py-4 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 disabled:opacity-70 flex items-center gap-3"
           >
-            {loading ? "Анализ..." : "Запустить анализ квантовых угроз"}
+            {loading ? "Анализ..." : "Запустить анализ устойчивости системы"}
             <AlertTriangle className="w-6 h-6" />
           </button>
         </div>

@@ -132,13 +132,16 @@ const stylesheet: cytoscape.Stylesheet[] = [
 
 const isWifiOk = (wifi: NetworkNode["wifi"], quantum: boolean): { ok: boolean; label: string } => {
   if (!wifi) return { ok: false, label: "Wi‑Fi: нет данных" };
-  const enc = (wifi.encryption || "").toLowerCase();
+  const raw = (wifi.encryption || "").toLowerCase();
+  const normalized = raw.replace(/[^a-z0-9]+/g, "");
   const hasPwd = Boolean(wifi.password);
+
   if (quantum) {
-    const strong = enc.includes("wpa3") && (enc.includes("192") || enc.includes("enterprise"));
+    const strong = normalized.includes("wpa3") && (normalized.includes("192") || normalized.includes("enterprise"));
     return { ok: strong && hasPwd, label: wifi.encryption || "Wi‑Fi" };
   }
-  const strong = enc.includes("wpa2") || enc.includes("wpa3");
+
+  const strong = normalized.includes("wpa2") || normalized.includes("wpa3");
   return { ok: strong && hasPwd, label: wifi.encryption || "Wi‑Fi" };
 };
 
@@ -213,7 +216,11 @@ const buildSecurityGraph = (platformNodes: NetworkNode[], isQuantum: boolean): D
     if (asset.vpn) addDescriptor("VPN", asset.vpn, "control");
     if (asset.wifi) {
       const wifiStatus = isWifiOk(asset.wifi, isQuantum);
-      const wifiLabel = (asset.wifi.encryption || "") + " " + (asset.wifi.password ? "(пароль задан)" : "(открытая сеть)");
+      const pwdLen = asset.wifi.password ? asset.wifi.password.length : 0;
+      const wifiLabel =
+        (asset.wifi.encryption || "") +
+        " " +
+        (asset.wifi.password ? "(пароль задан, длина " + pwdLen + ")" : "(открытая сеть)");
       addDescriptor("Wi‑Fi", wifiLabel.trim(), wifiStatus.ok ? "control" : "risk");
     }
     if (asset.professional_software?.length) addDescriptor("ПО", asset.professional_software.join(", "), "info");
